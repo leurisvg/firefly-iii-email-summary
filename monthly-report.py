@@ -64,7 +64,7 @@ def fetch_exchange_rates(base_currency, foreign_currencies):
     ]
     for url in endpoints:
         try:
-            print(f"   Trying {url} ...")
+            print(f"Trying {url} ...")
             resp = requests.get(url, timeout=10)
             resp.raise_for_status()
             data = resp.json()
@@ -370,22 +370,29 @@ def main():
 
             # Convert category amounts to base currency
             for t in totals:
+                all_raw = t["spent_entries_raw"] + t["earned_entries_raw"]
+                has_foreign = any(
+                    e["currency"] != currencyName and e["amount"] != 0
+                    for e in all_raw
+                )
                 spent_conv, earned_conv = 0.0, 0.0
-                t["spent_display"], t["earned_display"] = [], []
+                display = []
                 for e in t["spent_entries_raw"]:
                     conv, rate = convert_amount(e["amount"], e["currency"], currencyName, exchange_rates)
                     spent_conv += conv
-                    if e["currency"] != currencyName and e["amount"] != 0:
-                        t["spent_display"].append({"original": e["amount"], "currency": e["currency"], "rate": rate})
+                    if e["amount"] != 0 and (e["currency"] != currencyName or has_foreign):
+                        display.append({"original": e["amount"], "currency": e["currency"], "rate": rate})
                 for e in t["earned_entries_raw"]:
                     conv, rate = convert_amount(e["amount"], e["currency"], currencyName, exchange_rates)
                     earned_conv += conv
-                    if e["currency"] != currencyName and e["amount"] != 0:
-                        t["earned_display"].append({"original": e["amount"], "currency": e["currency"], "rate": rate})
+                    if e["amount"] != 0 and (e["currency"] != currencyName or has_foreign):
+                        display.append({"original": e["amount"], "currency": e["currency"], "rate": rate})
                 t["spent"] = spent_conv
                 t["earned"] = earned_conv
                 t["total"] = spent_conv + earned_conv
-                t["display"] = t["spent_display"] + t["earned_display"]
+                t["spent_display"] = [e for e in display if e["original"] < 0]
+                t["earned_display"] = [e for e in display if e["original"] > 0]
+                t["display"] = display
 
             # Convert budget amounts to base currency
             for b in budgetTotals:
