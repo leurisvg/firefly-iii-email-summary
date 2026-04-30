@@ -64,12 +64,20 @@ def fetch_exchange_rates(base_currency, foreign_currencies):
     ]
     for url in endpoints:
         try:
+            print(f"   Trying {url} ...")
             resp = requests.get(url, timeout=10)
             resp.raise_for_status()
             data = resp.json()
             if "rates" in data:
-                return _parse_rates(data, foreign_currencies)
-        except Exception:
+                rates = _parse_rates(data, foreign_currencies)
+                print(f"Rates fetched from {url.split('/')[2]}:")
+                for cur, rate in rates.items():
+                    print(f"      1 {cur} = {rate:.6f} {base_currency}")
+                return rates
+            else:
+                print(f"   ⚠️  Response missing 'rates' key: {data}")
+        except Exception as e:
+            print(f"   ❌ Failed: {e}")
             continue
 
     print("⚠️  Warning: Could not fetch exchange rates from any provider.")
@@ -1092,7 +1100,7 @@ def main():
 					<p>{monthName} {year}</p>
 				</div>
 				<div class="section">
-					<h3>🏷️ Category Summary TEST</h3>
+					<h3>🏷️ Category Summary</h3>
 					{categoriesTableBody}
 				</div>
 				<div class="section">
