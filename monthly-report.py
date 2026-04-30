@@ -107,6 +107,8 @@ def main():
         action="store_true",
         help="Generate preview.html instead of sending email",
     )
+    parser.add_argument("--month", type=int, help="Month number (1–12) for the report")
+    parser.add_argument("--year", type=int, help="Four-digit year for the report")
     args = parser.parse_args()
 
     # Get the directory where this script is located
@@ -136,10 +138,21 @@ def main():
     multi_currency_mode = "base_currency" in config
 
     #
-    # Determine the applicable date range: the previous month
+    # Determine the applicable date range
     today = datetime.date.today()
-    endDate = today.replace(day=1) - datetime.timedelta(days=1)
-    startDate = endDate.replace(day=1)
+    if args.month or args.year:
+        if not (args.month and args.year):
+            print("ERROR: --month and --year must be provided together")
+            sys.exit(1)
+        if not (1 <= args.month <= 12):
+            print("ERROR: --month must be between 1 and 12")
+            sys.exit(1)
+        startDate = datetime.date(args.year, args.month, 1)
+    else:
+        startDate = (today.replace(day=1) - datetime.timedelta(days=1)).replace(day=1)
+
+    next_month_first = (startDate.replace(day=28) + datetime.timedelta(days=4)).replace(day=1)
+    endDate = next_month_first - datetime.timedelta(days=1)
     monthName = startDate.strftime("%B")
 
     print(f"Generating report for {monthName} {startDate.strftime('%Y')}...")
