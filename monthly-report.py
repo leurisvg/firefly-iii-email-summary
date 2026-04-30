@@ -466,11 +466,20 @@ def main():
             inner = formatted
             if multi_currency_mode:
                 for e in (display_entries or []):
-                    inner += (
-                        f'<br><span class="original-amount">'
-                        f'{e["original"]:.2f} {e["currency"]}</span>'
-                        f'<br><span class="exchange-rate">rate: {e["rate"]:.4f}</span>'
-                    )
+                    orig = e["original"]
+                    rate = e["rate"]
+                    orig_str = f"{orig:+.2f} {e['currency']}"
+                    if rate == 1.0:
+                        inner += f'<br><span class="original-amount">{orig_str}</span>'
+                    else:
+                        conv = round(orig * rate)
+                        conv_str = f"{currencySymbol}{conv:+}"
+                        inner += (
+                            f'<br><span class="original-amount">'
+                            f'{orig_str} → {conv_str}'
+                            f' <span class="exchange-rate">(×{rate:.4f})</span>'
+                            f'</span>'
+                        )
             return f'<td style="{style}" class="amount {color_class}">{inner}</td>'
 
         #
