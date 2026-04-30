@@ -827,8 +827,24 @@ def main():
         print("Generating Sankey chart image...")
         sankey_image_path = os.path.join(base_dir, "sankey_chart.png")
 
+        # Compute total flow for each node (incoming for most; outgoing for source nodes)
+        node_values = [0.0] * len(sankeyNodes)
+        for link in sankeyLinks:
+            node_values[link["target"]] += link["value"]
+        # Revenue accounts have no incoming links — use their outgoing total
+        for idx in revenue_indices.values():
+            node_values[idx] = sum(
+                lk["value"] for lk in sankeyLinks if lk["source"] == idx
+            )
+
+        def _sfmt(v):
+            return f"{currencySymbol}{round(abs(v)):,}"
+
         # Prepare data for Plotly Sankey
-        node_labels = [node["label"] for node in sankeyNodes]
+        node_labels = [
+            f"{node['label']}<br>{_sfmt(node_values[i])}"
+            for i, node in enumerate(sankeyNodes)
+        ]
         link_sources = [link["source"] for link in sankeyLinks]
         link_targets = [link["target"] for link in sankeyLinks]
         link_values = [link["value"] for link in sankeyLinks]
