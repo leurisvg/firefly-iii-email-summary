@@ -1042,6 +1042,10 @@ def main():
 						font-style: italic;
 						font-weight: 400;
 					}}
+					.total-row .original-amount,
+					.total-row .exchange-rate {{
+						color: rgba(255, 255, 255, 0.85);
+					}}
 					.summary-row {{
 						background-color: #f8f9fa;
 						font-weight: 600;
