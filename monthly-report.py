@@ -42,6 +42,43 @@ from email.headerregistry import Address
 from email.utils import make_msgid
 
 
+def fetch_exchange_rates(base_currency, foreign_currencies):
+    """Fetch exchange rates from frankfurter.app (ECB rates, free, no API key).
+    Returns {foreign_currency: rate} where rate = units of base_currency per 1 foreign unit.
+    """
+    if not foreign_currencies:
+        return {}
+    url = f"https://api.frankfurter.app/latest?from={base_currency}"
+    try:
+        resp = requests.get(url, timeout=10)
+        resp.raise_for_status()
+        data = resp.json()
+        raw_rates = data.get("rates", {})  # raw_rates[X] = units of X per 1 BASE
+        inverted = {}
+        for currency, rate in raw_rates.items():
+            if currency in foreign_currencies and rate != 0:
+                inverted[currency] = 1.0 / rate  # 1 FOREIGN = (1/rate) BASE units
+        return inverted
+    except Exception as e:
+        print(f"⚠️  Warning: Could not fetch exchange rates: {e}")
+        print("   Proceeding without currency conversion (using rate 1.0)...")
+        return {}
+
+
+def convert_amount(amount, from_currency, to_currency, rates):
+    """Convert amount to to_currency using rates dict.
+    rates[from_currency] = units of to_currency per 1 unit of from_currency.
+    Returns (converted_amount, rate_used).
+    """
+    if from_currency == to_currency:
+        return float(amount), 1.0
+    rate = rates.get(from_currency)
+    if rate is None:
+        print(f"⚠️  Warning: No exchange rate for {from_currency}, using 1.0")
+        return float(amount), 1.0
+    return float(amount) * rate, rate
+
+
 def main():
     # Parse command line arguments
     parser = argparse.ArgumentParser(description="Generate Firefly III monthly report")
@@ -75,6 +112,8 @@ def main():
         if field not in config:
             print(f"ERROR: Missing required field '{field}' in config.yaml")
             sys.exit(1)
+
+    multi_currency_mode = "base_currency" in config
 
     #
     # Determine the applicable date range: the previous month
@@ -126,14 +165,28 @@ def main():
             )
             r = s.get(url).json()
             categoryName = r["data"]["attributes"]["name"]
-            try:
-                categorySpent = r["data"]["attributes"]["spent"][0]["sum"]
-            except (KeyError, IndexError):
-                categorySpent = 0
-            try:
-                categoryEarned = r["data"]["attributes"]["earned"][0]["sum"]
-            except (KeyError, IndexError):
-                categoryEarned = 0
+            if multi_currency_mode:
+                spent_entries_raw = [
+                    {"amount": float(e["sum"]), "currency": e.get("currency_code", "")}
+                    for e in r["data"]["attributes"].get("spent", [])
+                ]
+                earned_entries_raw = [
+                    {"amount": float(e["sum"]), "currency": e.get("currency_code", "")}
+                    for e in r["data"]["attributes"].get("earned", [])
+                ]
+                categorySpent = sum(e["amount"] for e in spent_entries_raw)
+                categoryEarned = sum(e["amount"] for e in earned_entries_raw)
+            else:
+                spent_entries_raw = []
+                earned_entries_raw = []
+                try:
+                    categorySpent = float(r["data"]["attributes"]["spent"][0]["sum"])
+                except (KeyError, IndexError):
+                    categorySpent = 0
+                try:
+                    categoryEarned = float(r["data"]["attributes"]["earned"][0]["sum"])
+                except (KeyError, IndexError):
+                    categoryEarned = 0
             categoryTotal = float(categoryEarned) + float(categorySpent)
             totals.append(
                 {
@@ -141,6 +194,8 @@ def main():
                     "spent": categorySpent,
                     "earned": categoryEarned,
                     "total": categoryTotal,
+                    "spent_entries_raw": spent_entries_raw,
+                    "earned_entries_raw": earned_entries_raw,
                 }
             )
         #
@@ -183,10 +238,38 @@ def main():
                         budgetLimit = 0
             except (KeyError, IndexError):
                 budgetLimit = 0
-            try:
-                budgetSpent = r["data"]["attributes"]["spent"][0]["sum"]
-            except (KeyError, IndexError):
-                budgetSpent = 0
+            if multi_currency_mode:
+                spent_entries_raw = [
+                    {"amount": float(e["sum"]), "currency": e.get("currency_code", "")}
+                    for e in r["data"]["attributes"].get("spent", [])
+                ]
+                budgetSpent = sum(e["amount"] for e in spent_entries_raw)
+                # Try to get limit currency from limits API entry
+                limit_currency = ""
+                try:
+                    url_limits = (
+                        config["firefly-url"]
+                        + "/api/v1/budgets/"
+                        + budget["id"]
+                        + "/limits?start="
+                        + startDate.strftime("%Y-%m-%d")
+                        + "&end="
+                        + endDate.strftime("%Y-%m-%d")
+                    )
+                    limits_data = s.get(url_limits).json()
+                    if limits_data["data"]:
+                        limit_currency = limits_data["data"][0]["attributes"].get("currency_code", "")
+                except Exception:
+                    pass
+                if not limit_currency and spent_entries_raw:
+                    limit_currency = spent_entries_raw[0]["currency"]
+            else:
+                spent_entries_raw = []
+                limit_currency = ""
+                try:
+                    budgetSpent = r["data"]["attributes"]["spent"][0]["sum"]
+                except (KeyError, IndexError):
+                    budgetSpent = 0
 
             if (
                 budgetLimit or budgetSpent
@@ -201,8 +284,10 @@ def main():
                         ],  # keep Firefly budget id for later transaction mapping
                         "name": budgetName,
                         "limit": budgetLimit,
+                        "limit_currency": limit_currency,
                         "spent": budgetSpent,
                         "remaining": budgetRemaining,
+                        "spent_entries_raw": spent_entries_raw,
                     }
                 )
         #
@@ -228,34 +313,139 @@ def main():
         currency = config.get("currency", None)
         currencySymbol = config.get("currency_symbol", "$")  # Default to $
 
-        if currency:
+        if multi_currency_mode:
+            currencyName = config["base_currency"]
+            currencySymbol = config.get("base_currency_symbol", currencySymbol)
+        elif currency:
             currencyName = currency
         else:
             for key in monthSummary:
                 if re.match(r"spent-in-.*", key):
                     currencyName = key.replace("spent-in-", "")
 
-        spentThisMonth = float(
-            monthSummary["spent-in-" + currencyName]["monetary_value"]
-        )
-        earnedThisMonth = float(
-            monthSummary["earned-in-" + currencyName]["monetary_value"]
-        )
-        netChangeThisMonth = float(
-            monthSummary["balance-in-" + currencyName]["monetary_value"]
-        )
-        spentThisYear = float(
-            yearToDateSummary["spent-in-" + currencyName]["monetary_value"]
-        )
-        earnedThisYear = float(
-            yearToDateSummary["earned-in-" + currencyName]["monetary_value"]
-        )
-        netChangeThisYear = float(
-            yearToDateSummary["balance-in-" + currencyName]["monetary_value"]
-        )
-        netWorth = float(
-            yearToDateSummary["net-worth-in-" + currencyName]["monetary_value"]
-        )
+        if multi_currency_mode:
+            # Collect all currencies encountered across categories, budgets, and summary
+            all_currencies = set()
+            for t in totals:
+                for e in t["spent_entries_raw"] + t["earned_entries_raw"]:
+                    if e["currency"]:
+                        all_currencies.add(e["currency"])
+            for b in budgetTotals:
+                for e in b["spent_entries_raw"]:
+                    if e["currency"]:
+                        all_currencies.add(e["currency"])
+                if b["limit_currency"]:
+                    all_currencies.add(b["limit_currency"])
+            for key in list(monthSummary) + list(yearToDateSummary):
+                m = re.match(r"spent-in-(.*)", key)
+                if m:
+                    all_currencies.add(m.group(1))
+            foreign_currencies = all_currencies - {currencyName}
+
+            print(
+                f"Fetching exchange rates (base: {currencyName},"
+                f" foreign: {', '.join(sorted(foreign_currencies)) or 'none'})..."
+            )
+            exchange_rates = fetch_exchange_rates(currencyName, foreign_currencies)
+
+            # Convert category amounts to base currency
+            for t in totals:
+                spent_conv, earned_conv = 0.0, 0.0
+                t["spent_display"], t["earned_display"] = [], []
+                for e in t["spent_entries_raw"]:
+                    conv, rate = convert_amount(e["amount"], e["currency"], currencyName, exchange_rates)
+                    spent_conv += conv
+                    if e["currency"] != currencyName and e["amount"] != 0:
+                        t["spent_display"].append({"original": e["amount"], "currency": e["currency"], "rate": rate})
+                for e in t["earned_entries_raw"]:
+                    conv, rate = convert_amount(e["amount"], e["currency"], currencyName, exchange_rates)
+                    earned_conv += conv
+                    if e["currency"] != currencyName and e["amount"] != 0:
+                        t["earned_display"].append({"original": e["amount"], "currency": e["currency"], "rate": rate})
+                t["spent"] = spent_conv
+                t["earned"] = earned_conv
+                t["total"] = spent_conv + earned_conv
+                t["display"] = t["spent_display"] + t["earned_display"]
+
+            # Convert budget amounts to base currency
+            for b in budgetTotals:
+                spent_conv = 0.0
+                b["spent_display"] = []
+                for e in b["spent_entries_raw"]:
+                    conv, rate = convert_amount(e["amount"], e["currency"], currencyName, exchange_rates)
+                    spent_conv += conv
+                    if e["currency"] != currencyName and e["amount"] != 0:
+                        b["spent_display"].append({"original": e["amount"], "currency": e["currency"], "rate": rate})
+                b["spent"] = spent_conv
+                lim_cur = b["limit_currency"] or currencyName
+                lim_conv, lim_rate = convert_amount(float(b["limit"]), lim_cur, currencyName, exchange_rates)
+                b["limit_display"] = []
+                if lim_cur != currencyName and float(b["limit"]) != 0:
+                    b["limit_display"] = [{"original": float(b["limit"]), "currency": lim_cur, "rate": lim_rate}]
+                b["limit"] = lim_conv
+                b["remaining"] = b["limit"] + b["spent"]
+
+            # Helper: aggregate a summary key across all currencies
+            def _sum_summary(summary, prefix):
+                total, display = 0.0, []
+                for key, value in summary.items():
+                    m = re.match(f"^{prefix}-(.+)", key)
+                    if m:
+                        cur = m.group(1)
+                        amt = float(value["monetary_value"])
+                        conv, rate = convert_amount(amt, cur, currencyName, exchange_rates)
+                        total += conv
+                        if cur != currencyName and amt != 0:
+                            display.append({"original": amt, "currency": cur, "rate": rate})
+                return total, display
+
+            spentThisMonth, spentThisMonth_display = _sum_summary(monthSummary, "spent-in")
+            earnedThisMonth, earnedThisMonth_display = _sum_summary(monthSummary, "earned-in")
+            netChangeThisMonth, netChangeThisMonth_display = _sum_summary(monthSummary, "balance-in")
+            spentThisYear, spentThisYear_display = _sum_summary(yearToDateSummary, "spent-in")
+            earnedThisYear, earnedThisYear_display = _sum_summary(yearToDateSummary, "earned-in")
+            netChangeThisYear, netChangeThisYear_display = _sum_summary(yearToDateSummary, "balance-in")
+            netWorth, netWorth_display = _sum_summary(yearToDateSummary, "net-worth-in")
+        else:
+            exchange_rates = {}
+            spentThisMonth = float(
+                monthSummary["spent-in-" + currencyName]["monetary_value"]
+            )
+            earnedThisMonth = float(
+                monthSummary["earned-in-" + currencyName]["monetary_value"]
+            )
+            netChangeThisMonth = float(
+                monthSummary["balance-in-" + currencyName]["monetary_value"]
+            )
+            spentThisYear = float(
+                yearToDateSummary["spent-in-" + currencyName]["monetary_value"]
+            )
+            earnedThisYear = float(
+                yearToDateSummary["earned-in-" + currencyName]["monetary_value"]
+            )
+            netChangeThisYear = float(
+                yearToDateSummary["balance-in-" + currencyName]["monetary_value"]
+            )
+            netWorth = float(
+                yearToDateSummary["net-worth-in-" + currencyName]["monetary_value"]
+            )
+            spentThisMonth_display = earnedThisMonth_display = netChangeThisMonth_display = []
+            spentThisYear_display = earnedThisYear_display = netChangeThisYear_display = netWorth_display = []
+        def _amt_cell(value, display_entries, color_class, style="text-align: right;"):
+            """Return a <td> HTML string for an amount, with foreign currency sub-lines."""
+            formatted = currencySymbol + str(round(abs(float(value)))).replace("-", "")
+            if float(value) < 0:
+                formatted = currencySymbol + "-" + str(round(abs(float(value))))
+            inner = formatted
+            if multi_currency_mode:
+                for e in (display_entries or []):
+                    inner += (
+                        f'<br><span class="original-amount">'
+                        f'{e["original"]:.2f} {e["currency"]}</span>'
+                        f'<br><span class="exchange-rate">rate: {e["rate"]:.4f}</span>'
+                    )
+            return f'<td style="{style}" class="amount {color_class}">{inner}</td>'
+
         #
         # Sort categories: by total (descending), with zeros at the end
         totals.sort(key=lambda x: (float(x["total"]) == 0, -abs(float(x["total"]))))
@@ -276,12 +466,9 @@ def main():
             categoriesTableBody += (
                 "<tr><td>"
                 + category["name"]
-                + '</td><td style="text-align: right;" class="amount '
-                + color_class
-                + '">'
-                + currencySymbol
-                + str(round(total)).replace("-", "-")
-                + "</td></tr>"
+                + "</td>"
+                + _amt_cell(total, category.get("display"), color_class)
+                + "</tr>"
             )
 
         # Add zero categories grouped together
@@ -317,18 +504,11 @@ def main():
                 budgetsTableBody += (
                     "<tr><td>"
                     + budget["name"]
-                    + '</td><td style="text-align: right;" class="amount">'
-                    + currencySymbol
-                    + str(round(float(budget["limit"]))).replace("-", "-")
-                    + '</td><td style="text-align: right;" class="amount negative">'
-                    + currencySymbol
-                    + str(round(abs(float(budget["spent"])))).replace("-", "-")
-                    + '</td><td style="text-align: right;" class="amount '
-                    + remaining_class
-                    + '">'
-                    + currencySymbol
-                    + str(round(remaining)).replace("-", "-")
-                    + "</td></tr>"
+                    + "</td>"
+                    + _amt_cell(float(budget["limit"]), budget.get("limit_display"), "", )
+                    + _amt_cell(abs(float(budget["spent"])), budget.get("spent_display"), "negative")
+                    + _amt_cell(remaining, None, remaining_class)
+                    + "</tr>"
                 )
 
             # Add zero budgets grouped together
@@ -356,56 +536,42 @@ def main():
         print("Building financial overview...")
         generalTableBody = "<table>"
         generalTableBody += (
-            '<tr><td>Spent this month:</td><td style="text-align: right;" class="amount negative">'
-            + currencySymbol
-            + str(round(abs(spentThisMonth))).replace("-", "-")
-            + "</td></tr>"
+            "<tr><td>Spent this month:</td>"
+            + _amt_cell(abs(spentThisMonth), spentThisMonth_display, "negative")
+            + "</tr>"
         )
         generalTableBody += (
-            '<tr><td>Earned this month:</td><td style="text-align: right;" class="amount positive">'
-            + currencySymbol
-            + str(round(earnedThisMonth)).replace("-", "-")
-            + "</td></tr>"
+            "<tr><td>Earned this month:</td>"
+            + _amt_cell(earnedThisMonth, earnedThisMonth_display, "positive")
+            + "</tr>"
         )
         net_class = "positive" if netChangeThisMonth > 0 else "negative"
         generalTableBody += (
-            '<tr class="summary-row"><td><strong>Net change this month:</strong></td><td style="text-align: right;" class="amount '
-            + net_class
-            + '"><strong>'
-            + currencySymbol
-            + str(round(netChangeThisMonth)).replace("-", "-")
-            + "</strong></td></tr>"
+            '<tr class="summary-row"><td><strong>Net change this month:</strong></td>'
+            + _amt_cell(netChangeThisMonth, netChangeThisMonth_display, net_class)
+            + "</tr>"
         )
         generalTableBody += (
-            '<tr><td>Spent so far this year:</td><td style="text-align: right;" class="amount negative">'
-            + currencySymbol
-            + str(round(abs(spentThisYear))).replace("-", "-")
-            + "</td></tr>"
+            "<tr><td>Spent so far this year:</td>"
+            + _amt_cell(abs(spentThisYear), spentThisYear_display, "negative")
+            + "</tr>"
         )
         generalTableBody += (
-            '<tr><td>Earned so far this year:</td><td style="text-align: right;" class="amount positive">'
-            + currencySymbol
-            + str(round(earnedThisYear)).replace("-", "-")
-            + "</td></tr>"
+            "<tr><td>Earned so far this year:</td>"
+            + _amt_cell(earnedThisYear, earnedThisYear_display, "positive")
+            + "</tr>"
         )
         net_year_class = "positive" if netChangeThisYear > 0 else "negative"
         generalTableBody += (
-            '<tr class="summary-row"><td><strong>Net change so far this year:</strong></td><td style="text-align: right;" class="amount '
-            + net_year_class
-            + '"><strong>'
-            + currencySymbol
-            + str(round(netChangeThisYear)).replace("-", "-")
-            + "</strong></td></tr>"
+            '<tr class="summary-row"><td><strong>Net change so far this year:</strong></td>'
+            + _amt_cell(netChangeThisYear, netChangeThisYear_display, net_year_class)
+            + "</tr>"
         )
         networth_class = "positive" if netWorth > 0 else "negative"
-        # change hover effect for total row
         generalTableBody += (
-            '<tr class="total-row '
-            + networth_class
-            + '"><td><strong>Current net worth:</strong></td><td style="text-align: right;" class="amount"><strong>'
-			+ currencySymbol
-            + str(round(netWorth)).replace("-", "-")
-            + "</strong></td></tr>"
+            f'<tr class="total-row {networth_class}"><td><strong>Current net worth:</strong></td>'
+            + _amt_cell(netWorth, netWorth_display, "")
+            + "</tr>"
         )
         generalTableBody += "</table>"
         #
@@ -434,7 +600,12 @@ def main():
 
         for trans in income_transactions.get("data", []):
             for t in trans["attributes"]["transactions"]:
-                amount = abs(float(t["amount"]))
+                raw_amount = abs(float(t["amount"]))
+                tx_currency = t.get("currency_code", currencyName)
+                if multi_currency_mode:
+                    amount, _ = convert_amount(raw_amount, tx_currency, currencyName, exchange_rates)
+                else:
+                    amount = raw_amount
                 source_name = t.get("source_name", "Other Income")
                 category = t.get("category_name") or ""
 
@@ -561,19 +732,24 @@ def main():
             for entry in b_tx_resp.get("data", []):
                 for t in entry.get("attributes", {}).get("transactions", []):
                     try:
-                        amt = float(t.get("amount", 0))
+                        raw_amt = float(t.get("amount", 0))
                     except (ValueError, TypeError):
-                        amt = 0
+                        raw_amt = 0
                     # We only consider negative amounts as expenses flowing out of the budget
-                    if amt >= 0:
+                    if raw_amt >= 0:
                         continue
+                    tx_currency = t.get("currency_code", currencyName)
+                    if multi_currency_mode:
+                        conv_amt, _ = convert_amount(raw_amt, tx_currency, currencyName, exchange_rates)
+                    else:
+                        conv_amt = raw_amt
                     cat_name = t.get("category_name") or "Uncategorized"
                     budget_name = b["name"]
                     if budget_name not in budget_category_map:
                         budget_category_map[budget_name] = {}
                     budget_category_map[budget_name][cat_name] = budget_category_map[
                         budget_name
-                    ].get(cat_name, 0) + abs(amt)
+                    ].get(cat_name, 0) + abs(conv_amt)
 
         # Create links: Budgets → Categories using real mapped amounts
         for budget_name, cat_map in budget_category_map.items():
@@ -818,6 +994,17 @@ def main():
 					.zero {{
 						color: #999;
 						font-style: italic;
+					}}
+					.original-amount {{
+						font-size: 0.8em;
+						color: #888;
+						font-weight: 400;
+					}}
+					.exchange-rate {{
+						font-size: 0.75em;
+						color: #aaa;
+						font-style: italic;
+						font-weight: 400;
 					}}
 					.summary-row {{
 						background-color: #f8f9fa;

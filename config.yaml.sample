@@ -4,8 +4,15 @@ firefly-url: 'https://your-firefly-instance.com'  # Your Firefly III URL (no tra
 accesstoken: 'YOUR_FIREFLY_API_TOKEN_HERE'  # Get this from Firefly III -> Options -> Profile -> OAuth -> Personal Access Tokens
 
 # Currency Settings
-currency: 'USD'  # Your currency code (USD, EUR, GBP, INR, etc.)
+currency: 'USD'  # Your primary currency code (USD, EUR, GBP, INR, etc.)
 currency_symbol: '$'  # Currency symbol to display in the report ($, €, £, ₹, etc.)
+
+# Multi-currency support (optional)
+# When base_currency is set, all amounts from other currencies are converted to it.
+# The report will show the converted value, the original value, and the rate used.
+# Exchange rates are fetched automatically from frankfurter.app (ECB rates, free, no API key).
+# base_currency: 'USD'         # Target currency for conversion
+# base_currency_symbol: '$'    # Symbol for the base currency
 
 # SMTP Email Configuration
 smtp:
