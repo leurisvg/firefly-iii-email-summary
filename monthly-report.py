@@ -768,11 +768,10 @@ def main():
             for entry in b_tx_resp.get("data", []):
                 for t in entry.get("attributes", {}).get("transactions", []):
                     try:
-                        raw_amt = float(t.get("amount", 0))
+                        raw_amt = abs(float(t.get("amount", 0)))
                     except (ValueError, TypeError):
                         raw_amt = 0
-                    # We only consider negative amounts as expenses flowing out of the budget
-                    if raw_amt >= 0:
+                    if raw_amt == 0:
                         continue
                     tx_currency = t.get("currency_code", currencyName)
                     if multi_currency_mode:
@@ -785,9 +784,10 @@ def main():
                         budget_category_map[budget_name] = {}
                     budget_category_map[budget_name][cat_name] = budget_category_map[
                         budget_name
-                    ].get(cat_name, 0) + abs(conv_amt)
+                    ].get(cat_name, 0) + conv_amt
 
         # Create links: Budgets → Categories using real mapped amounts
+        categories_reached_via_budget = set()
         for budget_name, cat_map in budget_category_map.items():
             if budget_name not in budget_indices:
                 continue
@@ -800,6 +800,18 @@ def main():
                             "value": amt,
                         }
                     )
+                    categories_reached_via_budget.add(cat_name)
+
+        # Fallback: expense categories not covered by any budget link directly from Income hub
+        for cat in expenseCategories:
+            if cat["name"] not in categories_reached_via_budget:
+                sankeyLinks.append(
+                    {
+                        "source": income_hub_index,
+                        "target": category_indices[cat["name"]],
+                        "value": abs(float(cat["total"])),
+                    }
+                )
 
         # Add savings flow from income hub
         if savings_index is not None:
