@@ -975,7 +975,8 @@ def main():
         # Assemble the email
         print("Composing email...")
         msg = EmailMessage()
-        msg["Subject"] = config.get("email_subject", "Firefly III: Monthly report")
+        base_subject = config.get("email_subject", "Firefly III: Monthly report")
+        msg["Subject"] = f"{base_subject} – {monthName} {startDate.strftime('%Y')}"
         msg["From"] = config["email"]["from"]
         msg["To"] = tuple(config["email"]["to"])
 
