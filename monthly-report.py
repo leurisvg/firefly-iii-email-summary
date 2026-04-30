@@ -614,6 +614,25 @@ def main():
         )
         generalTableBody += "</table>"
         #
+        # Compute savings rate and build highlights section
+        if earnedThisMonth > 0:
+            savingsRate = (netChangeThisMonth / earnedThisMonth) * 100
+        else:
+            savingsRate = 0.0
+
+        if savingsRate > 0:
+            pill_class = "positive"
+            pill_text = f"💰 You saved {savingsRate:.1f}% of your income this month"
+        else:
+            pill_class = "negative"
+            pill_text = f"⚠️ You spent {abs(savingsRate):.1f}% more than you earned this month"
+
+        highlightsSection = (
+            '<div class="highlights">'
+            f'<span class="highlight-pill {pill_class}">{pill_text}</span>'
+            "</div>"
+        )
+        #
         # Build Sankey chart data - Income → Budgets → Categories
         print("Building Sankey chart data...")
 
@@ -1077,6 +1096,26 @@ def main():
 					.total-row .exchange-rate {{
 						color: rgba(255, 255, 255, 0.85);
 					}}
+					.highlights {{
+						display: flex;
+						gap: 12px;
+						margin-bottom: 20px;
+						flex-wrap: wrap;
+					}}
+					.highlight-pill {{
+						padding: 10px 18px;
+						border-radius: 20px;
+						font-weight: 600;
+						font-size: 15px;
+					}}
+					.highlight-pill.positive {{
+						background: #d4edda;
+						color: #155724;
+					}}
+					.highlight-pill.negative {{
+						background: #f8d7da;
+						color: #721c24;
+					}}
 					.summary-row {{
 						background-color: #f8f9fa;
 						font-weight: 600;
@@ -1150,6 +1189,7 @@ def main():
 					<h1>📊 Firefly III Monthly Report</h1>
 					<p>{monthName} {year}</p>
 				</div>
+				{highlightsSection}
 				<div class="section">
 					<h3>🏷️ Category Summary</h3>
 					{categoriesTableBody}
@@ -1175,6 +1215,7 @@ def main():
             categoriesTableBody=categoriesTableBody,
             budgetSection=budgetSection,
             generalTableBody=generalTableBody,
+            highlightsSection=highlightsSection,
             sankeySection="{sankeySection}",  # Placeholder
         )
 
