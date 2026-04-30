@@ -842,7 +842,7 @@ def main():
 
         # Prepare data for Plotly Sankey
         node_labels = [
-            f"{node['label']}<br>{_sfmt(node_values[i])}"
+            f"{node['label']}: {_sfmt(node_values[i])}"
             for i, node in enumerate(sankeyNodes)
         ]
         link_sources = [link["source"] for link in sankeyLinks]
