@@ -1092,7 +1092,7 @@ def main():
 					<p>{monthName} {year}</p>
 				</div>
 				<div class="section">
-					<h3>🏷️ Category Summary</h3>
+					<h3>🏷️ Category Summary TEST</h3>
 					{categoriesTableBody}
 				</div>
 				<div class="section">
