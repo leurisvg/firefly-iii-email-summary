@@ -43,26 +43,38 @@ from email.utils import make_msgid
 
 
 def fetch_exchange_rates(base_currency, foreign_currencies):
-    """Fetch exchange rates from frankfurter.app (ECB rates, free, no API key).
+    """Fetch exchange rates (free, no API key required).
     Returns {foreign_currency: rate} where rate = units of base_currency per 1 foreign unit.
+    Tries open.er-api.com first, falls back to frankfurter.app.
     """
     if not foreign_currencies:
         return {}
-    url = f"https://api.frankfurter.app/latest?from={base_currency}"
-    try:
-        resp = requests.get(url, timeout=10)
-        resp.raise_for_status()
-        data = resp.json()
+
+    def _parse_rates(data, foreign_currencies):
         raw_rates = data.get("rates", {})  # raw_rates[X] = units of X per 1 BASE
         inverted = {}
         for currency, rate in raw_rates.items():
             if currency in foreign_currencies and rate != 0:
                 inverted[currency] = 1.0 / rate  # 1 FOREIGN = (1/rate) BASE units
         return inverted
-    except Exception as e:
-        print(f"⚠️  Warning: Could not fetch exchange rates: {e}")
-        print("   Proceeding without currency conversion (using rate 1.0)...")
-        return {}
+
+    endpoints = [
+        f"https://open.er-api.com/v6/latest/{base_currency}",
+        f"https://api.frankfurter.app/latest?from={base_currency}",
+    ]
+    for url in endpoints:
+        try:
+            resp = requests.get(url, timeout=10)
+            resp.raise_for_status()
+            data = resp.json()
+            if "rates" in data:
+                return _parse_rates(data, foreign_currencies)
+        except Exception:
+            continue
+
+    print("⚠️  Warning: Could not fetch exchange rates from any provider.")
+    print("   Proceeding without currency conversion (using rate 1.0)...")
+    return {}
 
 
 def convert_amount(amount, from_currency, to_currency, rates):
