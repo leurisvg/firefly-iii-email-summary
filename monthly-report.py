@@ -458,22 +458,27 @@ def main():
             )
             spentThisMonth_display = earnedThisMonth_display = netChangeThisMonth_display = []
             spentThisYear_display = earnedThisYear_display = netChangeThisYear_display = netWorth_display = []
+        def _fmtv(v):
+            """Format a numeric value as a currency string with symbol, thousands sep, 2 decimals."""
+            v = float(v)
+            sign = "-" if v < 0 else ""
+            return f"{currencySymbol}{sign}{abs(v):,.2f}"
+
         def _amt_cell(value, display_entries, color_class, style="text-align: right;"):
             """Return a <td> HTML string for an amount, with foreign currency sub-lines."""
-            formatted = currencySymbol + str(round(abs(float(value)))).replace("-", "")
-            if float(value) < 0:
-                formatted = currencySymbol + "-" + str(round(abs(float(value))))
-            inner = formatted
+            inner = _fmtv(value)
             if multi_currency_mode:
                 for e in (display_entries or []):
                     orig = e["original"]
                     rate = e["rate"]
-                    orig_str = f"{orig:+.2f} {e['currency']}"
+                    sign = "+" if orig >= 0 else "-"
+                    orig_str = f"{sign}{abs(orig):,.2f} {e['currency']}"
                     if rate == 1.0:
                         inner += f'<br><span class="original-amount">{orig_str}</span>'
                     else:
-                        conv = round(orig * rate)
-                        conv_str = f"{currencySymbol}{conv:+}"
+                        conv = orig * rate
+                        conv_sign = "+" if conv >= 0 else "-"
+                        conv_str = f"{currencySymbol}{conv_sign}{abs(conv):,.2f}"
                         inner += (
                             f'<br><span class="original-amount">'
                             f'{orig_str} → {conv_str}'
@@ -514,8 +519,8 @@ def main():
                 '<tr class="zero"><td>'
                 + zeroNames
                 + '</td><td style="text-align: right;" class="amount">'
-                + currencySymbol
-                + "0</td></tr>"
+                + _fmtv(0)
+                + "</td></tr>"
             )
 
         categoriesTableBody += "</table>"
@@ -556,13 +561,11 @@ def main():
                     '<tr class="zero"><td>'
                     + zeroNames
                     + '</td><td style="text-align: right;" class="amount">'
-                    + currencySymbol
-                    + str(round(totalZeroLimit)).replace("-", "-")
+                    + _fmtv(totalZeroLimit)
                     + '</td><td style="text-align: right;" class="amount">'
-                    + currencySymbol
-                    + '0</td><td style="text-align: right;" class="amount">'
-                    + currencySymbol
-                    + str(round(totalZeroLimit)).replace("-", "-")
+                    + _fmtv(0)
+                    + '</td><td style="text-align: right;" class="amount">'
+                    + _fmtv(totalZeroLimit)
                     + "</td></tr>"
                 )
 
@@ -838,7 +841,7 @@ def main():
             )
 
         def _sfmt(v):
-            return f"{currencySymbol}{round(abs(v)):,}"
+            return f"{currencySymbol}{abs(v):,.2f}"
 
         # Prepare data for Plotly Sankey
         node_labels = [
