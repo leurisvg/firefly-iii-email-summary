@@ -35,6 +35,7 @@ import os
 import argparse
 import json
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 from email.mime.image import MIMEImage
 
 from email.message import EmailMessage
@@ -1098,6 +1099,112 @@ def main():
                 '</div>'
             )
         #
+        # Fetch savings accounts and build 6-month balance chart
+        print("Fetching savings accounts...")
+        savings_cid = make_msgid(domain="firefly-report")
+        savings_image_path = os.path.join(base_dir, "savings_chart.png")
+
+        # Build list of last 6 month-end dates (ending with the report month)
+        month_ends = []
+        for i in range(5, -1, -1):
+            # Go back i months from startDate
+            d = startDate
+            for _ in range(i):
+                d = (d.replace(day=1) - datetime.timedelta(days=1)).replace(day=1)
+            last_day = (d.replace(day=28) + datetime.timedelta(days=4)).replace(day=1) - datetime.timedelta(days=1)
+            month_ends.append(last_day)
+
+        month_labels = [d.strftime("%b %Y") for d in month_ends]
+
+        asset_url = config["firefly-url"] + "/api/v1/accounts?type=asset&limit=50"
+        asset_resp = s.get(asset_url).json()
+        SAVINGS_TYPES = {"Savings account", "Asset account", "Shared asset account", "Cash wallet"}
+        savings_accounts = [
+            a for a in asset_resp.get("data", [])
+            if a["attributes"].get("account_type", "") in SAVINGS_TYPES
+            and not a["attributes"].get("include_net_worth", True) is False
+        ]
+
+        # Fetch monthly balances for each savings account
+        account_series = []
+        for acct in savings_accounts:
+            acct_id = acct["id"]
+            acct_name = acct["attributes"]["name"]
+            acct_currency = acct["attributes"].get("currency_code", currencyName)
+            balances = []
+            for d in month_ends:
+                url_bal = f"{config['firefly-url']}/api/v1/accounts/{acct_id}?date={d.strftime('%Y-%m-%d')}"
+                try:
+                    bal_resp = s.get(url_bal).json()
+                    raw_bal = float(bal_resp["data"]["attributes"].get("current_balance", 0))
+                    if multi_currency_mode and acct_currency != currencyName:
+                        raw_bal, _ = convert_amount(raw_bal, acct_currency, currencyName, exchange_rates)
+                except Exception:
+                    raw_bal = 0
+                balances.append(raw_bal)
+            if any(b != 0 for b in balances):
+                account_series.append({"name": acct_name, "balances": balances})
+
+        savings_section_html = ""
+        savings_image_path_valid = None
+        if account_series:
+            n = len(account_series)
+            fig_savings = make_subplots(
+                rows=1, cols=n,
+                subplot_titles=[a["name"] for a in account_series],
+                shared_yaxes=False,
+            )
+            palette = [
+                "#667eea", "#28a745", "#fd7e14", "#dc3545", "#17a2b8",
+                "#6f42c1", "#20c997", "#e83e8c", "#ffc107", "#343a40",
+            ]
+            for idx, acct in enumerate(account_series):
+                color = palette[idx % len(palette)]
+                fig_savings.add_trace(
+                    go.Scatter(
+                        x=month_labels,
+                        y=acct["balances"],
+                        mode="lines+markers",
+                        name=acct["name"],
+                        line=dict(color=color, width=2.5),
+                        marker=dict(size=6, color=color),
+                        showlegend=False,
+                        hovertemplate="%{x}: " + currencySymbol + "%{y:,.2f}<extra></extra>",
+                    ),
+                    row=1, col=idx + 1,
+                )
+                fig_savings.update_xaxes(tickangle=-30, row=1, col=idx + 1)
+                fig_savings.update_yaxes(
+                    tickprefix=currencySymbol, tickformat=",.0f", row=1, col=idx + 1
+                )
+
+            chart_width = max(800, 300 * n)
+            fig_savings.update_layout(
+                paper_bgcolor="white",
+                plot_bgcolor="#f8f9fa",
+                font=dict(family="Inter, Arial", size=12),
+                margin=dict(l=20, r=20, t=50, b=60),
+                height=280,
+            )
+            try:
+                fig_savings.write_image(
+                    savings_image_path, format="png",
+                    width=chart_width, height=280, scale=2,
+                )
+                savings_image_path_valid = savings_image_path
+                print(f"✅ Savings chart saved: {savings_image_path}")
+            except Exception as e:
+                print(f"⚠️  Could not generate savings chart: {e}")
+
+            savings_section_html = (
+                '<div class="section">'
+                '<h3>🏦 Savings Accounts – Balance (Last 6 Months)</h3>'
+                '__SAVINGS_CHART__'
+                '</div>'
+            )
+        else:
+            savings_section_html = ""
+        #
         # Assemble the email
         print("Composing email...")
         msg = EmailMessage()
@@ -1345,6 +1452,7 @@ def main():
 				</div>
 				{budgetSection}
 				{topTransactionsSection}
+				{savingsSection}
 				<div class="section">
 					<h3>📈 Financial Overview</h3>
 					{generalTableBody}
@@ -1361,6 +1469,7 @@ def main():
             categoriesTableBody=categoriesTableBody,
             budgetSection=budgetSection,
             topTransactionsSection=topTransactionsSection,
+            savingsSection=savings_section_html,
             generalTableBody=generalTableBody,
             highlightsSection=highlightsSection,
             sankeySection="{sankeySection}",  # Placeholder
@@ -1447,8 +1556,15 @@ def main():
             </body>
         </html>
         """
+            # Savings chart for preview: embed as file:// img if generated
+            if savings_image_path_valid:
+                savings_img_tag = f'<img src="file://{savings_image_path_valid}" alt="Savings Chart" style="width: 100%; height: auto; border-radius: 8px;" />'
+            else:
+                savings_img_tag = '<p style="color: #999; padding: 20px 0;">No savings accounts found.</p>'
             htmlBody = (
-                htmlBody.replace("{sankeySection}", sankeySection) + javascript_code
+                htmlBody.replace("{sankeySection}", sankeySection)
+                        .replace("__SAVINGS_CHART__", savings_img_tag)
+                + javascript_code
             )
         else:
             # For email, use embedded static image
@@ -1456,8 +1572,13 @@ def main():
                 sankeySection = f'<img src="cid:{sankey_cid[1:-1]}" alt="Money Flow Chart" style="width: 100%; max-width: 800px; height: auto; border-radius: 8px;" />'
             else:
                 sankeySection = '<p style="text-align: center; color: #999; padding: 40px;">Sankey chart could not be generated</p>'
+            if savings_image_path_valid:
+                savings_img_tag = f'<img src="cid:{savings_cid[1:-1]}" alt="Savings Chart" style="width: 100%; height: auto; border-radius: 8px;" />'
+            else:
+                savings_img_tag = '<p style="color: #999; padding: 20px 0;">No savings accounts found.</p>'
             htmlBody = (
                 htmlBody.replace("{sankeySection}", sankeySection)
+                        .replace("__SAVINGS_CHART__", savings_img_tag)
                 + """
             </body>
         </html>
@@ -1476,6 +1597,14 @@ def main():
                     img_data, maintype="image", subtype="png", cid=sankey_cid
                 )
             print("✅ Sankey chart image attached to email")
+        # Attach savings chart image for email mode
+        if not args.preview and savings_image_path_valid and os.path.exists(savings_image_path_valid):
+            with open(savings_image_path_valid, "rb") as img_file:
+                img_data = img_file.read()
+                msg.get_payload()[1].add_related(
+                    img_data, maintype="image", subtype="png", cid=savings_cid
+                )
+            print("✅ Savings chart image attached to email")
         #
         # Check if we're in preview mode
         if args.preview:
