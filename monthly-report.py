@@ -526,19 +526,26 @@ def main():
         # Sort categories: by total (descending), with zeros at the end
         totals.sort(key=lambda x: (float(x["total"]) == 0, -abs(float(x["total"]))))
         #
+        prev_month_name = prev_start.strftime("%B")
+
         def _mom_cell(current, previous):
-            """Return a <td> with the month-over-month delta and percentage."""
+            """Return a <td> with the previous month amount, delta and percentage."""
             if previous == 0:
                 if current == 0:
                     return '<td style="text-align: right;" class="mom-delta zero">—</td>'
-                return '<td style="text-align: right;" class="mom-delta positive">New</td>'
+                return (
+                    f'<td style="text-align: right;" class="mom-delta positive">'
+                    f'<span class="mom-prev">—</span><br>New</td>'
+                )
             delta = current - previous
             pct = (delta / abs(previous)) * 100
             arrow = "↑" if delta > 0 else "↓"
             css = "positive" if delta > 0 else "negative"
             sign = "+" if delta > 0 else ""
+            prev_color = "positive" if previous > 0 else "negative"
             return (
                 f'<td style="text-align: right;" class="mom-delta {css}">'
+                f'<span class="mom-prev {prev_color}">{_fmtv(previous)}</span><br>'
                 f'{sign}{_fmtv(delta)} {arrow}{abs(pct):.1f}%'
                 f'</td>'
             )
@@ -550,7 +557,7 @@ def main():
             '<tr>'
             '<th>Category</th>'
             '<th style="text-align: right;">Total</th>'
-            '<th style="text-align: right;">vs Last Month</th>'
+            f'<th style="text-align: right;">vs Last Month ({prev_month_name})</th>'
             '</tr>'
         )
         # Separate non-zero and zero categories
