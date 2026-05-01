@@ -1024,6 +1024,80 @@ def main():
         # For preview mode, keep the JSON data for interactive chart
         sankeyData = json.dumps({"nodes": sankeyNodes, "links": sankeyLinks})
         #
+        # Fetch top 5 largest expenses
+        print("Fetching top transactions...")
+        top_tx_url = (
+            config["firefly-url"]
+            + "/api/v1/transactions?start="
+            + startDate.strftime("%Y-%m-%d")
+            + "&end="
+            + endDate.strftime("%Y-%m-%d")
+            + "&type=withdrawal&limit=100"
+        )
+        top_tx_resp = s.get(top_tx_url).json()
+        all_expenses = []
+        for entry in top_tx_resp.get("data", []):
+            for t in entry.get("attributes", {}).get("transactions", []):
+                try:
+                    raw_amt = abs(float(t.get("amount", 0)))
+                except (ValueError, TypeError):
+                    continue
+                if raw_amt == 0:
+                    continue
+                tx_currency = t.get("currency_code", currencyName)
+                if multi_currency_mode:
+                    conv_amt, _ = convert_amount(raw_amt, tx_currency, currencyName, exchange_rates)
+                else:
+                    conv_amt = raw_amt
+                all_expenses.append({
+                    "amount": conv_amt,
+                    "original_amount": raw_amt,
+                    "currency": tx_currency,
+                    "description": t.get("description", "—"),
+                    "category": t.get("category_name") or "—",
+                    "date": t.get("date", "")[:10],
+                })
+        all_expenses.sort(key=lambda x: x["amount"], reverse=True)
+        top5 = all_expenses[:5]
+
+        topTransactionsSection = ""
+        if top5:
+            rows = ""
+            for tx in top5:
+                try:
+                    date_fmt = datetime.date.fromisoformat(tx["date"]).strftime("%b %d")
+                except ValueError:
+                    date_fmt = tx["date"]
+                if multi_currency_mode and tx["currency"] != currencyName:
+                    amt_html = (
+                        f'<span class="amount negative">{_fmtv(-tx["amount"])}</span>'
+                        f'<br><span class="original-amount">{tx["currency"]} {tx["original_amount"]:,.2f}</span>'
+                    )
+                else:
+                    amt_html = f'<span class="amount negative">{_fmtv(-tx["amount"])}</span>'
+                rows += (
+                    f'<tr>'
+                    f'<td>{tx["description"]}</td>'
+                    f'<td>{tx["category"]}</td>'
+                    f'<td style="text-align: center;">{date_fmt}</td>'
+                    f'<td style="text-align: right;">{amt_html}</td>'
+                    f'</tr>'
+                )
+            topTransactionsSection = (
+                '<div class="section">'
+                '<h3>🧾 Top 5 Largest Expenses</h3>'
+                '<table>'
+                '<tr>'
+                '<th>Description</th>'
+                '<th>Category</th>'
+                '<th style="text-align: center;">Date</th>'
+                '<th style="text-align: right;">Amount</th>'
+                '</tr>'
+                + rows +
+                '</table>'
+                '</div>'
+            )
+        #
         # Assemble the email
         print("Composing email...")
         msg = EmailMessage()
@@ -1270,6 +1344,7 @@ def main():
 					{sankeySection}
 				</div>
 				{budgetSection}
+				{topTransactionsSection}
 				<div class="section">
 					<h3>📈 Financial Overview</h3>
 					{generalTableBody}
@@ -1285,6 +1360,7 @@ def main():
             year=startDate.strftime("%Y"),
             categoriesTableBody=categoriesTableBody,
             budgetSection=budgetSection,
+            topTransactionsSection=topTransactionsSection,
             generalTableBody=generalTableBody,
             highlightsSection=highlightsSection,
             sankeySection="{sankeySection}",  # Placeholder
