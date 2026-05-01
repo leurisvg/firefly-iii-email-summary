@@ -179,48 +179,61 @@ def main():
             sys.exit(1)
 
         #
+        # Previous month date range (for month-over-month comparison)
+        prev_end = startDate - datetime.timedelta(days=1)
+        prev_start = prev_end.replace(day=1)
+        #
         # Get all the categories
         print("Fetching categories...")
         url = config["firefly-url"] + "/api/v1/categories"
         categories = s.get(url).json()
         #
-        # Get the spent and earned totals for each category
+        # Get the spent and earned totals for each category (current + previous month)
         totals = []
         for category in categories["data"]:
-            url = (
-                config["firefly-url"]
-                + "/api/v1/categories/"
-                + category["id"]
-                + "?start="
-                + startDate.strftime("%Y-%m-%d")
-                + "&end="
-                + endDate.strftime("%Y-%m-%d")
-            )
-            r = s.get(url).json()
+            cat_id = category["id"]
+
+            def _fetch_cat(start, end):
+                u = (
+                    config["firefly-url"]
+                    + "/api/v1/categories/"
+                    + cat_id
+                    + "?start=" + start.strftime("%Y-%m-%d")
+                    + "&end=" + end.strftime("%Y-%m-%d")
+                )
+                return s.get(u).json()
+
+            r = _fetch_cat(startDate, endDate)
+            r_prev = _fetch_cat(prev_start, prev_end)
             categoryName = r["data"]["attributes"]["name"]
-            if multi_currency_mode:
-                spent_entries_raw = [
-                    {"amount": float(e["sum"]), "currency": e.get("currency_code", "")}
-                    for e in r["data"]["attributes"].get("spent", [])
-                ]
-                earned_entries_raw = [
-                    {"amount": float(e["sum"]), "currency": e.get("currency_code", "")}
-                    for e in r["data"]["attributes"].get("earned", [])
-                ]
-                categorySpent = sum(e["amount"] for e in spent_entries_raw)
-                categoryEarned = sum(e["amount"] for e in earned_entries_raw)
-            else:
-                spent_entries_raw = []
-                earned_entries_raw = []
-                try:
-                    categorySpent = float(r["data"]["attributes"]["spent"][0]["sum"])
-                except (KeyError, IndexError):
-                    categorySpent = 0
-                try:
-                    categoryEarned = float(r["data"]["attributes"]["earned"][0]["sum"])
-                except (KeyError, IndexError):
-                    categoryEarned = 0
+
+            def _parse_cat_entries(data):
+                if multi_currency_mode:
+                    spent = [
+                        {"amount": float(e["sum"]), "currency": e.get("currency_code", "")}
+                        for e in data["data"]["attributes"].get("spent", [])
+                    ]
+                    earned = [
+                        {"amount": float(e["sum"]), "currency": e.get("currency_code", "")}
+                        for e in data["data"]["attributes"].get("earned", [])
+                    ]
+                    return spent, earned, sum(e["amount"] for e in spent), sum(e["amount"] for e in earned)
+                else:
+                    try:
+                        s_amt = float(data["data"]["attributes"]["spent"][0]["sum"])
+                    except (KeyError, IndexError):
+                        s_amt = 0
+                    try:
+                        e_amt = float(data["data"]["attributes"]["earned"][0]["sum"])
+                    except (KeyError, IndexError):
+                        e_amt = 0
+                    return [], [], s_amt, e_amt
+
+            spent_entries_raw, earned_entries_raw, categorySpent, categoryEarned = _parse_cat_entries(r)
+            prev_spent_raw, prev_earned_raw, prevSpent, prevEarned = _parse_cat_entries(r_prev)
+
             categoryTotal = float(categoryEarned) + float(categorySpent)
+            prevTotal = float(prevEarned) + float(prevSpent)
             totals.append(
                 {
                     "name": categoryName,
@@ -229,6 +242,9 @@ def main():
                     "total": categoryTotal,
                     "spent_entries_raw": spent_entries_raw,
                     "earned_entries_raw": earned_entries_raw,
+                    "prev_total": prevTotal,
+                    "prev_spent_raw": prev_spent_raw,
+                    "prev_earned_raw": prev_earned_raw,
                 }
             )
         #
@@ -406,6 +422,12 @@ def main():
                 t["spent_display"] = [e for e in display if e["original"] < 0]
                 t["earned_display"] = [e for e in display if e["original"] > 0]
                 t["display"] = display
+                # Convert previous month total for comparison
+                prev_conv = sum(
+                    convert_amount(e["amount"], e["currency"], currencyName, exchange_rates)[0]
+                    for e in t["prev_spent_raw"] + t["prev_earned_raw"]
+                )
+                t["prev_total"] = prev_conv
 
             # Convert budget amounts to base currency
             for b in budgetTotals:
@@ -504,10 +526,32 @@ def main():
         # Sort categories: by total (descending), with zeros at the end
         totals.sort(key=lambda x: (float(x["total"]) == 0, -abs(float(x["total"]))))
         #
+        def _mom_cell(current, previous):
+            """Return a <td> with the month-over-month delta and percentage."""
+            if previous == 0:
+                if current == 0:
+                    return '<td style="text-align: right;" class="mom-delta zero">—</td>'
+                return '<td style="text-align: right;" class="mom-delta positive">New</td>'
+            delta = current - previous
+            pct = (delta / abs(previous)) * 100
+            arrow = "↑" if delta > 0 else "↓"
+            css = "positive" if delta > 0 else "negative"
+            sign = "+" if delta > 0 else ""
+            return (
+                f'<td style="text-align: right;" class="mom-delta {css}">'
+                f'{sign}{_fmtv(delta)} {arrow}{abs(pct):.1f}%'
+                f'</td>'
+            )
+
         # Set up the categories table
         print("Building category table...")
         categoriesTableBody = (
-            '<table><tr><th>Category</th><th style="text-align: right;">Total</th></tr>'
+            '<table>'
+            '<tr>'
+            '<th>Category</th>'
+            '<th style="text-align: right;">Total</th>'
+            '<th style="text-align: right;">vs Last Month</th>'
+            '</tr>'
         )
         # Separate non-zero and zero categories
         nonZeroCategories = [c for c in totals if float(c["total"]) != 0]
@@ -522,6 +566,7 @@ def main():
                 + category["name"]
                 + "</td>"
                 + _amt_cell(total, category.get("display"), color_class)
+                + _mom_cell(total, float(category.get("prev_total", 0)))
                 + "</tr>"
             )
 
@@ -1129,6 +1174,11 @@ def main():
 					.highlight-pill.negative {{
 						background: #f8d7da;
 						color: #721c24;
+					}}
+					.mom-delta {{
+						font-size: 0.85em;
+						font-weight: 500;
+						white-space: nowrap;
 					}}
 					.summary-row {{
 						background-color: #f8f9fa;
