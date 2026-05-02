@@ -1112,7 +1112,7 @@ def main():
                 bgcolor="rgba(255,255,255,0.8)",
                 tracegroupgap=0,
                 itemsizing="constant",
-                itemwidth=20,
+                itemwidth=30,
             ),
             yaxis=dict(tickprefix=currencySymbol, tickformat=",.0f", gridcolor="#e9ecef"),
             showlegend=True,
