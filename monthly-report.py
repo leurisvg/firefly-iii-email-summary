@@ -1167,18 +1167,32 @@ def main():
                 "#667eea", "#28a745", "#fd7e14", "#dc3545", "#17a2b8",
                 "#6f42c1", "#20c997", "#e83e8c", "#ffc107", "#343a40",
             ]
+            def _compact(v):
+                av = abs(v)
+                if av >= 1_000_000:
+                    s = f"{av / 1_000_000:.1f}M".rstrip("0").rstrip(".")
+                elif av >= 1_000:
+                    s = f"{av / 1_000:.1f}k".rstrip("0").rstrip(".")
+                else:
+                    s = f"{av:.0f}"
+                return ("-" if v < 0 else "") + s
+
             for idx, acct in enumerate(account_series):
                 color = palette[idx % len(palette)]
                 r = idx // cols_per_row + 1
                 c = idx % cols_per_row + 1
+                labels = [_compact(b) for b in acct["balances"]]
                 fig_savings.add_trace(
                     go.Scatter(
                         x=month_labels,
                         y=acct["balances"],
-                        mode="lines+markers",
+                        mode="lines+markers+text",
                         name=acct["name"],
                         line=dict(color=color, width=2.5),
                         marker=dict(size=6, color=color),
+                        text=labels,
+                        textposition="top center",
+                        textfont=dict(size=10, color=color),
                         showlegend=False,
                         hovertemplate="%{x}: " + currencySymbol + "%{y:,.2f}<extra></extra>",
                     ),
@@ -1190,7 +1204,7 @@ def main():
                 )
 
             chart_width = max(800, 300 * n_cols)
-            chart_height = 280 * n_rows
+            chart_height = 320 * n_rows
             fig_savings.update_layout(
                 paper_bgcolor="white",
                 plot_bgcolor="#f8f9fa",
