@@ -1192,7 +1192,7 @@ def main():
                         marker=dict(size=6, color=color),
                         text=labels,
                         textposition="top center",
-                        textfont=dict(size=10, color=color),
+                        textfont=dict(size=8, color="#333333"),
                         showlegend=False,
                         hovertemplate="%{x}: " + currencySymbol + "%{y:,.2f}<extra></extra>",
                     ),
