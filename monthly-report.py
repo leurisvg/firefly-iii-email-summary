@@ -1106,6 +1106,15 @@ def main():
             print("   Continuing without Sankey chart...")
             sankey_image_path = None
 
+        # Capture interactive HTML div for the attached report
+        sankey_html_div = ""
+        try:
+            sankey_html_div = fig.to_html(
+                include_plotlyjs="cdn", full_html=False, div_id="sankey-chart"
+            )
+        except Exception as e:
+            print(f"⚠️  Warning: Could not generate interactive Sankey HTML: {e}")
+
         # For preview mode, keep the JSON data for interactive chart
         sankeyData = json.dumps({"nodes": sankeyNodes, "links": sankeyLinks})
 
@@ -1185,6 +1194,7 @@ def main():
             )
         #
         # Fetch savings accounts and build 6-month balance chart
+        savings_html_div = ""
         print("Fetching savings accounts...")
         savings_cid = make_msgid(domain="firefly-report")
         savings_image_path = os.path.join(base_dir, "savings_chart.png")
@@ -1354,6 +1364,14 @@ def main():
                 print(f"✅ Savings chart saved: {savings_image_path}")
             except Exception as e:
                 print(f"⚠️  Could not generate savings chart: {e}")
+
+            # Capture interactive HTML div for the attached report
+            try:
+                savings_html_div = fig_savings.to_html(
+                    include_plotlyjs=False, full_html=False, div_id="savings-chart"
+                )
+            except Exception as e:
+                print(f"⚠️  Warning: Could not generate interactive savings HTML: {e}")
 
             savings_section_html = (
                 '<div class="section">'
@@ -1632,6 +1650,9 @@ def main():
 					<h3>🏷️ Category Summary</h3>
 					{categoriesTableBody}
 				</div>
+				<div style="background:#f0f4ff;border-radius:8px;padding:12px 18px;margin-bottom:20px;font-size:13px;color:#4c5fa8;border-left:3px solid #667eea;line-height:1.5;">
+					📊 An <strong>interactive version</strong> of this report is attached — open <strong>firefly-report.html</strong> in your browser for hover details, zoom, and pan on all charts.
+				</div>
 				<div class="section">
 					<h3>💸 Money Flow</h3>
 					{sankeySection}
@@ -1791,6 +1812,32 @@ def main():
                     img_data, maintype="image", subtype="png", cid=savings_cid
                 )
             print("✅ Savings chart image attached to email")
+
+        # Attach interactive HTML report (email mode only)
+        if not args.preview:
+            interactive_sankey = (
+                f'<div style="width:100%;overflow-x:auto;">{sankey_html_div}</div>'
+                if sankey_html_div
+                else '<p style="text-align:center;color:#999;padding:40px;">Chart could not be generated</p>'
+            )
+            interactive_savings = (
+                f'<div style="width:100%;overflow-x:auto;">{savings_html_div}</div>'
+                if savings_html_div
+                else '<p style="color:#999;padding:20px 0;">No savings accounts found.</p>'
+            )
+            interactive_html_body = (
+                htmlBody
+                .replace(sankeySection, interactive_sankey, 1)
+                .replace(savings_img_tag, interactive_savings, 1)
+            )
+            report_filename = f"firefly-report-{startDate.strftime('%Y-%m')}.html"
+            msg.add_attachment(
+                f"<!DOCTYPE html>\n{interactive_html_body}".encode("utf-8"),
+                maintype="text",
+                subtype="html",
+                filename=report_filename,
+            )
+            print(f"✅ Interactive HTML report attached: {report_filename}")
         #
         # Check if we're in preview mode
         if args.preview:
