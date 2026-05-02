@@ -664,12 +664,31 @@ def main():
         # Set up the general information table
         print("Building financial overview...")
 
-        def _stat_card(label, value_str, color):
+        def _stat_card(label, value, display_entries, color):
+            inner = _fmtv(value)
+            if multi_currency_mode:
+                for e in (display_entries or []):
+                    orig = e["original"]
+                    rate = e["rate"]
+                    sign = "+" if orig >= 0 else "-"
+                    orig_str = f"{sign}{abs(orig):,.2f} {e['currency']}"
+                    if rate == 1.0:
+                        inner += f'<br><span style="font-size:11px;font-weight:400;color:#888;">{orig_str}</span>'
+                    else:
+                        conv = orig * rate
+                        conv_sign = "+" if conv >= 0 else "-"
+                        conv_str = f"{currencySymbol}{conv_sign}{abs(conv):,.2f}"
+                        inner += (
+                            f'<br><span style="font-size:11px;font-weight:400;color:#888;">'
+                            f'{orig_str} → {conv_str}'
+                            f' <span style="font-size:10px;color:#aaa;font-style:italic;">(×{rate:.4f})</span>'
+                            f'</span>'
+                        )
             return (
                 f'<td style="width:33.33%;padding:8px;vertical-align:top;">'
                 f'<div style="background:#f8f9fa;border-radius:8px;padding:16px;border-left:4px solid {color};">'
                 f'<div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.8px;color:#6b7280;margin-bottom:8px;">{label}</div>'
-                f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:18px;font-weight:700;color:#1a1a1a;">{value_str}</div>'
+                f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:18px;font-weight:700;color:#1a1a1a;">{inner}</div>'
                 f'</div></td>'
             )
 
@@ -677,26 +696,47 @@ def main():
         net_y_color = "#10b981" if netChangeThisYear  >= 0 else "#ef4444"
         nw_color    = "#10b981" if netWorth           >= 0 else "#ef4444"
 
+        # Net worth multi-currency display
+        nw_inner = _fmtv(netWorth)
+        if multi_currency_mode:
+            for e in (netWorth_display or []):
+                orig = e["original"]
+                rate = e["rate"]
+                sign = "+" if orig >= 0 else "-"
+                orig_str = f"{sign}{abs(orig):,.2f} {e['currency']}"
+                if rate == 1.0:
+                    nw_inner += f'<br><span style="font-size:11px;font-weight:400;color:#888;">{orig_str}</span>'
+                else:
+                    conv = orig * rate
+                    conv_sign = "+" if conv >= 0 else "-"
+                    conv_str = f"{currencySymbol}{conv_sign}{abs(conv):,.2f}"
+                    nw_inner += (
+                        f'<br><span style="font-size:11px;font-weight:400;color:#888;">'
+                        f'{orig_str} → {conv_str}'
+                        f' <span style="font-size:10px;color:#aaa;font-style:italic;">(×{rate:.4f})</span>'
+                        f'</span>'
+                    )
+
         generalTableBody = (
             '<table style="width:100%;border-collapse:collapse;margin-top:0;">'
             '<tr><td colspan="3" style="padding:4px 8px 2px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#9ca3af;border-bottom:none;">This Month</td></tr>'
             '<tr>'
-            + _stat_card("Earned", _fmtv(earnedThisMonth),      "#10b981")
-            + _stat_card("Spent",  _fmtv(abs(spentThisMonth)),  "#ef4444")
-            + _stat_card("Net",    _fmtv(netChangeThisMonth),   net_m_color)
+            + _stat_card("Earned", earnedThisMonth,      earnedThisMonth_display,      "#10b981")
+            + _stat_card("Spent",  abs(spentThisMonth),  spentThisMonth_display,       "#ef4444")
+            + _stat_card("Net",    netChangeThisMonth,   netChangeThisMonth_display,   net_m_color)
             + '</tr>'
             '<tr><td colspan="3" style="padding:12px 8px 2px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#9ca3af;border-bottom:none;">Year to Date</td></tr>'
             '<tr>'
-            + _stat_card("Earned", _fmtv(earnedThisYear),       "#10b981")
-            + _stat_card("Spent",  _fmtv(abs(spentThisYear)),   "#ef4444")
-            + _stat_card("Net",    _fmtv(netChangeThisYear),    net_y_color)
+            + _stat_card("Earned", earnedThisYear,       earnedThisYear_display,       "#10b981")
+            + _stat_card("Spent",  abs(spentThisYear),   spentThisYear_display,        "#ef4444")
+            + _stat_card("Net",    netChangeThisYear,    netChangeThisYear_display,    net_y_color)
             + '</tr>'
             '<tr><td colspan="3" style="padding:12px 8px 2px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#9ca3af;border-bottom:none;">Net Worth</td></tr>'
             f'<tr><td colspan="3" style="padding:8px;border-bottom:none;">'
             f'<div style="background:#f8f9fa;border-radius:8px;padding:16px;border-left:4px solid {nw_color};">'
             f'<div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.8px;color:#6b7280;margin-bottom:8px;">Current Net Worth</div>'
             f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:24px;font-weight:700;color:{nw_color};">'
-            + _fmtv(netWorth)
+            + nw_inner
             + '</div></div></td></tr></table>'
         )
         #
@@ -1059,97 +1099,6 @@ def main():
 
         # For preview mode, keep the JSON data for interactive chart
         sankeyData = json.dumps({"nodes": sankeyNodes, "links": sankeyLinks})
-
-        # Generate income/expense stacked bar chart
-        print("Generating income/expense bar chart...")
-        bar_cid = make_msgid(domain="firefly-report")
-        bar_image_path = os.path.join(base_dir, "bar_chart.png")
-        bar_image_path_valid = None
-
-        bar_palette = [
-            "#667eea", "#10b981", "#fd7e14", "#ef4444", "#17a2b8",
-            "#6f42c1", "#20c997", "#e83e8c", "#ffc107", "#343a40",
-            "#a0522d", "#5f9ea0", "#ff6347", "#4169e1", "#32cd32",
-        ]
-
-        income_cats = [(c["name"], float(c["earned"])) for c in totals if float(c.get("earned", 0)) > 0]
-        expense_cats = [(c["name"], abs(float(c["spent"]))) for c in totals if float(c.get("spent", 0)) < 0]
-        income_cats.sort(key=lambda x: -x[1])
-        expense_cats.sort(key=lambda x: -x[1])
-
-        # Assign a stable color per unique category name across both bars
-        all_cat_names = list(dict.fromkeys([n for n, _ in income_cats] + [n for n, _ in expense_cats]))
-        cat_color = {name: bar_palette[i % len(bar_palette)] for i, name in enumerate(all_cat_names)}
-
-        income_total = sum(v for _, v in income_cats)
-        expense_total = sum(v for _, v in expense_cats)
-        net = float(netChangeThisMonth)
-        net_color = "#10b981" if net >= 0 else "#ef4444"
-        net_label = "Savings" if net >= 0 else "Overspent"
-
-        fig_bar = go.Figure()
-        for name, val in income_cats:
-            fig_bar.add_trace(go.Bar(
-                name=name, x=["Income"], y=[val],
-                marker_color=cat_color[name],
-                text=[_compact(val)], textposition="inside",
-                textfont=dict(size=9, color="white"),
-                showlegend=True,
-                legendgroup=name,
-            ))
-        for name, val in expense_cats:
-            fig_bar.add_trace(go.Bar(
-                name=name, x=["Expenses"], y=[val],
-                marker_color=cat_color[name],
-                text=[_compact(val)], textposition="inside",
-                textfont=dict(size=9, color="white"),
-                showlegend=name not in [n for n, _ in income_cats],
-                legendgroup=name,
-            ))
-        fig_bar.add_trace(go.Bar(
-            name=net_label, x=[net_label], y=[net],
-            marker_color=net_color,
-            text=[""], textposition="inside",
-            showlegend=False,
-        ))
-
-        # Totals annotations above each bar
-        bar_annotations = [
-            dict(x="Income", y=income_total, text=f"<b>{_fmtv(income_total)}</b>",
-                 showarrow=False, yanchor="bottom", yshift=6, font=dict(size=5, color="#333")),
-            dict(x="Expenses", y=expense_total, text=f"<b>{_fmtv(expense_total)}</b>",
-                 showarrow=False, yanchor="bottom", yshift=6, font=dict(size=5, color="#333")),
-            dict(x=net_label, y=net, text=f"<b>{_fmtv(net)}</b>",
-                 showarrow=False, yanchor="bottom" if net >= 0 else "top",
-                 yshift=6 if net >= 0 else -6, font=dict(size=5, color=net_color)),
-        ]
-
-        fig_bar.update_layout(
-            barmode="stack",
-            paper_bgcolor="white",
-            plot_bgcolor="#f8f9fa",
-            font=dict(family="Inter, Arial", size=10),
-            margin=dict(l=10, r=10, t=30, b=10),
-            annotations=bar_annotations,
-            legend=dict(
-                orientation="v", x=1.02, y=1,
-                font=dict(size=5),
-                bgcolor="rgba(255,255,255,0.8)",
-                tracegroupgap=0,
-                itemsizing="constant",
-                itemwidth=30,
-            ),
-            yaxis=dict(tickprefix=currencySymbol, tickformat=".3s", gridcolor="#e9ecef",
-                       tickfont=dict(size=5)),
-            xaxis=dict(tickfont=dict(size=5)),
-            showlegend=True,
-        )
-        try:
-            fig_bar.write_image(bar_image_path, format="png", width=260, height=380, scale=2)
-            bar_image_path_valid = bar_image_path
-            print(f"✅ Bar chart saved: {bar_image_path}")
-        except Exception as e:
-            print(f"⚠️  Could not generate bar chart: {e}")
 
         #
         # Fetch top 5 largest expenses
@@ -1619,10 +1568,7 @@ def main():
 				</div>
 				<div class="section">
 					<h3>💸 Money Flow</h3>
-					<div style="display: flex; gap: 20px; align-items: flex-start;">
-						<div style="flex: 2; min-width: 0;">{sankeySection}</div>
-						<div style="flex: 1; min-width: 0;">{barSection}</div>
-					</div>
+					{sankeySection}
 				</div>
 				{budgetSection}
 				{topTransactionsSection}
@@ -1647,7 +1593,6 @@ def main():
             generalTableBody=generalTableBody,
             highlightsSection=highlightsSection,
             sankeySection="{sankeySection}",  # Placeholder
-            barSection="{barSection}",  # Placeholder
         )
 
         # Determine Sankey section content based on preview mode
@@ -1736,13 +1681,8 @@ def main():
                 savings_img_tag = f'<img src="file://{savings_image_path_valid}" alt="Savings Chart" style="width: 100%; height: auto; border-radius: 8px;" />'
             else:
                 savings_img_tag = '<p style="color: #999; padding: 20px 0;">No savings accounts found.</p>'
-            if bar_image_path_valid:
-                bar_img_tag = f'<img src="file://{bar_image_path_valid}" alt="Income vs Expenses" style="width: 100%; height: auto; border-radius: 8px;" />'
-            else:
-                bar_img_tag = ''
             htmlBody = (
                 htmlBody.replace("{sankeySection}", sankeySection)
-                        .replace("{barSection}", bar_img_tag)
                         .replace("__SAVINGS_CHART__", savings_img_tag)
                 + javascript_code
             )
@@ -1756,13 +1696,8 @@ def main():
                 savings_img_tag = f'<img src="cid:{savings_cid[1:-1]}" alt="Savings Chart" style="width: 100%; height: auto; border-radius: 8px;" />'
             else:
                 savings_img_tag = '<p style="color: #999; padding: 20px 0;">No savings accounts found.</p>'
-            if bar_image_path_valid:
-                bar_img_tag = f'<img src="cid:{bar_cid[1:-1]}" alt="Income vs Expenses" style="width: 100%; height: auto; border-radius: 8px;" />'
-            else:
-                bar_img_tag = ''
             htmlBody = (
                 htmlBody.replace("{sankeySection}", sankeySection)
-                        .replace("{barSection}", bar_img_tag)
                         .replace("__SAVINGS_CHART__", savings_img_tag)
                 + """
             </body>
@@ -1790,14 +1725,6 @@ def main():
                     img_data, maintype="image", subtype="png", cid=savings_cid
                 )
             print("✅ Savings chart image attached to email")
-        # Attach bar chart image for email mode
-        if not args.preview and bar_image_path_valid and os.path.exists(bar_image_path_valid):
-            with open(bar_image_path_valid, "rb") as img_file:
-                img_data = img_file.read()
-                msg.get_payload()[1].add_related(
-                    img_data, maintype="image", subtype="png", cid=bar_cid
-                )
-            print("✅ Bar chart image attached to email")
         #
         # Check if we're in preview mode
         if args.preview:
