@@ -1249,11 +1249,27 @@ def main():
                 color, fill_color = palette[idx % len(palette)]
                 r = idx // cols_per_row + 1
                 c = idx % cols_per_row + 1
+                balances = acct["balances"]
+                labels = [_compact(b) for b in balances]
+                # Phantom baseline at data minimum so fill is relative to chart range, not zero
+                baseline = min(b for b in balances if b is not None) if any(b is not None for b in balances) else 0
+                baseline_y = [baseline] * len(month_labels)
                 fig_savings.add_trace(
                     go.Scatter(
                         x=month_labels,
-                        y=acct["balances"],
-                        mode="lines+markers",
+                        y=baseline_y,
+                        mode="lines",
+                        line=dict(color="rgba(0,0,0,0)", width=0),
+                        showlegend=False,
+                        hoverinfo="skip",
+                    ),
+                    row=r, col=c,
+                )
+                fig_savings.add_trace(
+                    go.Scatter(
+                        x=month_labels,
+                        y=balances,
+                        mode="lines+markers+text",
                         name=acct["name"],
                         line=dict(color=color, width=2.5, shape="spline", smoothing=0.6),
                         marker=dict(
@@ -1261,7 +1277,10 @@ def main():
                             color=color,
                             line=dict(color="white", width=1.5),
                         ),
-                        fill="tozeroy",
+                        text=labels,
+                        textposition="top center",
+                        textfont=dict(size=8, color="#374151"),
+                        fill="tonexty",
                         fillcolor=fill_color,
                         connectgaps=True,
                         showlegend=False,
@@ -1286,9 +1305,8 @@ def main():
                     showgrid=True,
                     gridcolor="#f0f0f0",
                     gridwidth=1,
-                    zeroline=True,
-                    zerolinecolor="#e5e7eb",
-                    zerolinewidth=1,
+                    zeroline=False,
+                    rangemode="normal",
                     nticks=4,
                     row=r, col=c,
                 )
