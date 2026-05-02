@@ -1298,16 +1298,23 @@ def main():
                     zeroline=False,
                     row=r, col=c,
                 )
+                valid = [b for b in balances if b is not None]
+                if valid:
+                    lo, hi = min(valid), max(valid)
+                    pad = (hi - lo) * 0.18 if hi != lo else abs(hi) * 0.1 or 1
+                    y_range = [lo - pad, hi + pad]
+                else:
+                    y_range = None
                 fig_savings.update_yaxes(
                     tickprefix=currencySymbol,
-                    tickformat=".2s",
+                    tickformat=",.0f",
                     tickfont=dict(size=9, color="#6b7280"),
                     showgrid=True,
                     gridcolor="#f0f0f0",
                     gridwidth=1,
                     zeroline=False,
-                    rangemode="normal",
                     nticks=4,
+                    range=y_range,
                     row=r, col=c,
                 )
 
