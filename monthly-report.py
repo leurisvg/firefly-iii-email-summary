@@ -1091,12 +1091,12 @@ def main():
         # Totals annotations above each bar
         bar_annotations = [
             dict(x="Income", y=income_total, text=f"<b>{_fmtv(income_total)}</b>",
-                 showarrow=False, yanchor="bottom", yshift=6, font=dict(size=6, color="#333")),
+                 showarrow=False, yanchor="bottom", yshift=6, font=dict(size=5, color="#333")),
             dict(x="Expenses", y=expense_total, text=f"<b>{_fmtv(expense_total)}</b>",
-                 showarrow=False, yanchor="bottom", yshift=6, font=dict(size=6, color="#333")),
+                 showarrow=False, yanchor="bottom", yshift=6, font=dict(size=5, color="#333")),
             dict(x=net_label, y=net, text=f"<b>{_fmtv(net)}</b>",
                  showarrow=False, yanchor="bottom" if net >= 0 else "top",
-                 yshift=6 if net >= 0 else -6, font=dict(size=6, color=net_color)),
+                 yshift=6 if net >= 0 else -6, font=dict(size=5, color=net_color)),
         ]
 
         fig_bar.update_layout(
@@ -1108,19 +1108,19 @@ def main():
             annotations=bar_annotations,
             legend=dict(
                 orientation="v", x=1.02, y=1,
-                font=dict(size=6),
+                font=dict(size=5),
                 bgcolor="rgba(255,255,255,0.8)",
                 tracegroupgap=0,
                 itemsizing="constant",
                 itemwidth=30,
             ),
             yaxis=dict(tickprefix=currencySymbol, tickformat=".3s", gridcolor="#e9ecef",
-                       tickfont=dict(size=6)),
-            xaxis=dict(tickfont=dict(size=6)),
+                       tickfont=dict(size=5)),
+            xaxis=dict(tickfont=dict(size=5)),
             showlegend=True,
         )
         try:
-            fig_bar.write_image(bar_image_path, format="png", width=300, height=420, scale=2)
+            fig_bar.write_image(bar_image_path, format="png", width=280, height=400, scale=2)
             bar_image_path_valid = bar_image_path
             print(f"✅ Bar chart saved: {bar_image_path}")
         except Exception as e:
