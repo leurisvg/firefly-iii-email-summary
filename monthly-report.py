@@ -1108,9 +1108,11 @@ def main():
             annotations=bar_annotations,
             legend=dict(
                 orientation="v", x=1.02, y=1,
-                font=dict(size=8),
+                font=dict(size=6),
                 bgcolor="rgba(255,255,255,0.8)",
-                tracegroupgap=2,
+                tracegroupgap=0,
+                itemsizing="constant",
+                itemwidth=20,
             ),
             yaxis=dict(tickprefix=currencySymbol, tickformat=",.0f", gridcolor="#e9ecef"),
             showlegend=True,
