@@ -582,11 +582,10 @@ def main():
         if zeroCategories:
             zeroNames = ", ".join([c["name"] for c in zeroCategories])
             categoriesTableBody += (
-                '<tr class="zero"><td>'
+                '<tr class="zero"><td colspan="3">'
                 + zeroNames
-                + '</td><td style="text-align: right;" class="amount">'
-                + _fmtv(0)
-                + '</td><td></td></tr>'
+                + ' — ' + _fmtv(0)
+                + '</td></tr>'
             )
 
         categoriesTableBody += "</table>"
