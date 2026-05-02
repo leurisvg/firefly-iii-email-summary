@@ -1012,26 +1012,22 @@ def main():
         link_targets = [link["target"] for link in sankeyLinks]
         link_values = [link["value"] for link in sankeyLinks]
 
-        # Define colors for nodes
+        # Define colors for nodes (aligned to report palette)
         node_colors = []
         for node in sankeyNodes:
             node_id = node["id"]
             if node_id.startswith("revenue_"):
-                node_colors.append("rgba(27, 94, 32, 0.8)")  # Dark green for revenue
+                node_colors.append("rgba(147, 51, 234, 0.85)")   # Purple — revenue sources
             elif node_id.startswith("income_cat_"):
-                node_colors.append(
-                    "rgba(76, 175, 80, 0.8)"
-                )  # Light green for income categories
+                node_colors.append("rgba(52, 211, 153, 0.85)")   # Light emerald — income categories
             elif node_id == "income_hub":
-                node_colors.append("rgba(102, 126, 234, 0.8)")  # Blue for income hub
+                node_colors.append("rgba(102, 126, 234, 0.9)")   # Indigo — income hub
             elif node_id.startswith("budget_"):
-                node_colors.append("rgba(156, 39, 176, 0.8)")  # Purple for budgets
+                node_colors.append("rgba(245, 158, 11, 0.85)")   # Amber — budgets
             elif node_id == "net_savings":
-                node_colors.append("rgba(16, 185, 129, 0.8)")  # Green for savings
-            else:  # categories
-                node_colors.append(
-                    "rgba(239, 68, 68, 0.8)"
-                )  # Red for expense categories
+                node_colors.append("rgba(16, 185, 129, 0.9)")    # Emerald — net savings
+            else:
+                node_colors.append("rgba(239, 68, 68, 0.85)")    # Red — expense categories
 
         # Define colors for links
         link_colors = []
@@ -1039,57 +1035,57 @@ def main():
             source_node = sankeyNodes[link["source"]]
             target_node = sankeyNodes[link["target"]]
 
-            # Color based on flow type
+            # Color based on flow type (aligned to report palette)
             if target_node["id"] == "income_hub":
-                link_colors.append("rgba(76, 175, 80, 0.4)")  # Income flow
+                link_colors.append("rgba(52, 211, 153, 0.35)")   # Income → hub
             elif target_node["id"] == "net_savings":
-                link_colors.append("rgba(16, 185, 129, 0.4)")  # Savings flow
+                link_colors.append("rgba(16, 185, 129, 0.45)")   # Hub → savings
             elif source_node["id"] == "income_hub" and target_node["id"].startswith(
                 "budget_"
             ):
-                link_colors.append("rgba(156, 39, 176, 0.4)")  # Income to budgets
+                link_colors.append("rgba(245, 158, 11, 0.35)")   # Hub → budgets
             elif source_node["id"].startswith("budget_"):
-                link_colors.append("rgba(239, 68, 68, 0.4)")  # Budget to expenses
+                link_colors.append("rgba(239, 68, 68, 0.35)")    # Budget → expenses
             else:
-                link_colors.append("rgba(27, 94, 32, 0.4)")  # Revenue sources
+                link_colors.append("rgba(147, 51, 234, 0.35)")   # Revenue source flows
 
         # Create Plotly Sankey diagram
         fig = go.Figure(
             data=[
                 go.Sankey(
+                    arrangement="snap",
                     node=dict(
-                        pad=15,
-                        thickness=20,
-                        line=dict(color="white", width=2),
+                        pad=22,
+                        thickness=24,
+                        line=dict(color="rgba(15, 23, 42, 0.08)", width=0.5),
                         label=node_labels,
                         color=node_colors,
+                        hovertemplate="%{label}<extra></extra>",
                     ),
                     link=dict(
                         source=link_sources,
                         target=link_targets,
                         value=link_values,
                         color=link_colors,
+                        hovertemplate="%{source.label} → %{target.label}<br>"
+                                      f"{currencySymbol}" + "%{value:,.2f}<extra></extra>",
                     ),
                 )
             ]
         )
 
         fig.update_layout(
-            title=dict(
-                text=f"Money Flow - {monthName} {startDate.strftime('%Y')}",
-                font=dict(size=20, family="Inter, Arial", color="#1a1a1a"),
-            ),
-            font=dict(size=12, family="Inter, Arial"),
+            font=dict(size=12, family="Inter, Arial", color="#1a1a1a"),
             plot_bgcolor="white",
             paper_bgcolor="white",
             height=600,
-            margin=dict(l=10, r=10, t=50, b=10),
+            margin=dict(l=10, r=10, t=10, b=10),
         )
 
         # Save as PNG
         try:
             fig.write_image(
-                sankey_image_path, format="png", width=800, height=600, scale=2
+                sankey_image_path, format="png", width=800, height=600, scale=3
             )
             print(f"✅ Sankey chart saved: {sankey_image_path}")
         except Exception as e:
@@ -1236,53 +1232,83 @@ def main():
                 rows=n_rows, cols=n_cols,
                 subplot_titles=[a["name"] for a in account_series],
                 shared_yaxes=False,
-                horizontal_spacing=0.12,
-                vertical_spacing=0.2,
+                horizontal_spacing=0.10,
+                vertical_spacing=0.15,
             )
             palette = [
-                "#667eea", "#10b981", "#fd7e14", "#ef4444", "#17a2b8",
-                "#6f42c1", "#20c997", "#e83e8c", "#ffc107", "#343a40",
+                ("#667eea", "rgba(102, 126, 234, 0.12)"),  # Indigo
+                ("#10b981", "rgba(16, 185, 129, 0.12)"),   # Emerald
+                ("#f59e0b", "rgba(245, 158, 11, 0.12)"),   # Amber
+                ("#ef4444", "rgba(239, 68, 68, 0.12)"),    # Red
+                ("#9333ea", "rgba(147, 51, 234, 0.12)"),   # Purple
+                ("#0ea5e9", "rgba(14, 165, 233, 0.12)"),   # Sky
+                ("#f43f5e", "rgba(244, 63, 94, 0.12)"),    # Rose
+                ("#14b8a6", "rgba(20, 184, 166, 0.12)"),   # Teal
             ]
             for idx, acct in enumerate(account_series):
-                color = palette[idx % len(palette)]
+                color, fill_color = palette[idx % len(palette)]
                 r = idx // cols_per_row + 1
                 c = idx % cols_per_row + 1
-                labels = [_compact(b) for b in acct["balances"]]
                 fig_savings.add_trace(
                     go.Scatter(
                         x=month_labels,
                         y=acct["balances"],
-                        mode="lines+markers+text",
+                        mode="lines+markers",
                         name=acct["name"],
-                        line=dict(color=color, width=2.5),
-                        marker=dict(size=6, color=color),
-                        text=labels,
-                        textposition="top center",
-                        textfont=dict(size=8, color="#333333"),
+                        line=dict(color=color, width=2.5, shape="spline", smoothing=0.6),
+                        marker=dict(
+                            size=7,
+                            color=color,
+                            line=dict(color="white", width=1.5),
+                        ),
+                        fill="tozeroy",
+                        fillcolor=fill_color,
+                        connectgaps=True,
                         showlegend=False,
                         hovertemplate="%{x}: " + currencySymbol + "%{y:,.2f}<extra></extra>",
                     ),
                     row=r, col=c,
                 )
-                fig_savings.update_xaxes(tickangle=-30, tickfont=dict(size=7), row=r, col=c)
+                fig_savings.update_xaxes(
+                    tickangle=0,
+                    tickfont=dict(size=9, color="#6b7280"),
+                    showgrid=False,
+                    showline=True,
+                    linecolor="#e5e7eb",
+                    linewidth=1,
+                    zeroline=False,
+                    row=r, col=c,
+                )
                 fig_savings.update_yaxes(
-                    tickprefix=currencySymbol, tickformat=",.0f",
-                    tickfont=dict(size=7), row=r, col=c
+                    tickprefix=currencySymbol,
+                    tickformat=".2s",
+                    tickfont=dict(size=9, color="#6b7280"),
+                    showgrid=True,
+                    gridcolor="#f0f0f0",
+                    gridwidth=1,
+                    zeroline=True,
+                    zerolinecolor="#e5e7eb",
+                    zerolinewidth=1,
+                    nticks=4,
+                    row=r, col=c,
                 )
 
-            chart_width = max(800, 300 * n_cols)
-            chart_height = 320 * n_rows
+            for annotation in fig_savings.layout.annotations:
+                annotation.font = dict(size=12, color="#374151", family="Inter, Arial")
+
+            chart_width = max(800, 320 * n_cols)
+            chart_height = 340 * n_rows
             fig_savings.update_layout(
                 paper_bgcolor="white",
-                plot_bgcolor="#f8f9fa",
-                font=dict(family="Inter, Arial", size=12),
-                margin=dict(l=20, r=20, t=50, b=60),
+                plot_bgcolor="white",
+                font=dict(family="Inter, Arial", size=12, color="#1a1a1a"),
+                margin=dict(l=20, r=20, t=50, b=50),
                 height=chart_height,
             )
             try:
                 fig_savings.write_image(
                     savings_image_path, format="png",
-                    width=chart_width, height=chart_height, scale=2,
+                    width=chart_width, height=chart_height, scale=3,
                 )
                 savings_image_path_valid = savings_image_path
                 print(f"✅ Savings chart saved: {savings_image_path}")
