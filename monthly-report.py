@@ -500,6 +500,16 @@ def main():
             sign = "-" if v < 0 else ""
             return f"{currencySymbol}{sign}{abs(v):,.2f}"
 
+        def _compact(v):
+            av = abs(v)
+            if av >= 1_000_000:
+                s = f"{av / 1_000_000:.1f}M".rstrip("0").rstrip(".")
+            elif av >= 1_000:
+                s = f"{av / 1_000:.1f}k".rstrip("0").rstrip(".")
+            else:
+                s = f"{av:.0f}"
+            return ("-" if v < 0 else "") + s
+
         def _amt_cell(value, display_entries, color_class, style="text-align: right;"):
             """Return a <td> HTML string for an amount, with foreign currency sub-lines."""
             inner = _fmtv(value)
@@ -1024,6 +1034,74 @@ def main():
 
         # For preview mode, keep the JSON data for interactive chart
         sankeyData = json.dumps({"nodes": sankeyNodes, "links": sankeyLinks})
+
+        # Generate income/expense stacked bar chart
+        print("Generating income/expense bar chart...")
+        bar_cid = make_msgid(domain="firefly-report")
+        bar_image_path = os.path.join(base_dir, "bar_chart.png")
+        bar_image_path_valid = None
+
+        bar_palette = [
+            "#667eea", "#28a745", "#fd7e14", "#dc3545", "#17a2b8",
+            "#6f42c1", "#20c997", "#e83e8c", "#ffc107", "#343a40",
+            "#a0522d", "#5f9ea0", "#ff6347", "#4169e1", "#32cd32",
+        ]
+
+        income_cats = [(c["name"], float(c["earned"])) for c in totals if float(c.get("earned", 0)) > 0]
+        expense_cats = [(c["name"], abs(float(c["spent"]))) for c in totals if float(c.get("spent", 0)) < 0]
+        income_cats.sort(key=lambda x: -x[1])
+        expense_cats.sort(key=lambda x: -x[1])
+
+        fig_bar = go.Figure()
+        for i, (name, val) in enumerate(income_cats):
+            fig_bar.add_trace(go.Bar(
+                name=name, x=["Income"], y=[val],
+                marker_color=bar_palette[i % len(bar_palette)],
+                text=[_compact(val)], textposition="inside",
+                textfont=dict(size=9, color="white"),
+                showlegend=True,
+                legendgroup="income",
+            ))
+        for i, (name, val) in enumerate(expense_cats):
+            fig_bar.add_trace(go.Bar(
+                name=name, x=["Expenses"], y=[val],
+                marker_color=bar_palette[i % len(bar_palette)],
+                text=[_compact(val)], textposition="inside",
+                textfont=dict(size=9, color="white"),
+                showlegend=False,
+                legendgroup="expenses",
+            ))
+        net = float(netChangeThisMonth)
+        net_color = "#28a745" if net >= 0 else "#dc3545"
+        net_label = ("Savings" if net >= 0 else "Overspent")
+        fig_bar.add_trace(go.Bar(
+            name=net_label, x=[net_label], y=[net],
+            marker_color=net_color,
+            text=[_compact(net)], textposition="outside",
+            textfont=dict(size=10, color=net_color),
+            showlegend=False,
+        ))
+        fig_bar.update_layout(
+            barmode="stack",
+            paper_bgcolor="white",
+            plot_bgcolor="#f8f9fa",
+            font=dict(family="Inter, Arial", size=11),
+            margin=dict(l=10, r=10, t=20, b=10),
+            legend=dict(
+                orientation="v", x=1.02, y=1,
+                font=dict(size=9),
+                bgcolor="rgba(255,255,255,0.8)",
+            ),
+            yaxis=dict(tickprefix=currencySymbol, tickformat=",.0f", gridcolor="#e9ecef"),
+            showlegend=True,
+        )
+        try:
+            fig_bar.write_image(bar_image_path, format="png", width=420, height=600, scale=2)
+            bar_image_path_valid = bar_image_path
+            print(f"✅ Bar chart saved: {bar_image_path}")
+        except Exception as e:
+            print(f"⚠️  Could not generate bar chart: {e}")
+
         #
         # Fetch top 5 largest expenses
         print("Fetching top transactions...")
@@ -1167,16 +1245,6 @@ def main():
                 "#667eea", "#28a745", "#fd7e14", "#dc3545", "#17a2b8",
                 "#6f42c1", "#20c997", "#e83e8c", "#ffc107", "#343a40",
             ]
-            def _compact(v):
-                av = abs(v)
-                if av >= 1_000_000:
-                    s = f"{av / 1_000_000:.1f}M".rstrip("0").rstrip(".")
-                elif av >= 1_000:
-                    s = f"{av / 1_000:.1f}k".rstrip("0").rstrip(".")
-                else:
-                    s = f"{av:.0f}"
-                return ("-" if v < 0 else "") + s
-
             for idx, acct in enumerate(account_series):
                 color = palette[idx % len(palette)]
                 r = idx // cols_per_row + 1
@@ -1474,7 +1542,10 @@ def main():
 				</div>
 				<div class="section">
 					<h3>💸 Money Flow</h3>
-					{sankeySection}
+					<div style="display: flex; gap: 20px; align-items: flex-start;">
+						<div style="flex: 2; min-width: 0;">{sankeySection}</div>
+						<div style="flex: 1; min-width: 0;">{barSection}</div>
+					</div>
 				</div>
 				{budgetSection}
 				{topTransactionsSection}
@@ -1499,6 +1570,7 @@ def main():
             generalTableBody=generalTableBody,
             highlightsSection=highlightsSection,
             sankeySection="{sankeySection}",  # Placeholder
+            barSection="{barSection}",  # Placeholder
         )
 
         # Determine Sankey section content based on preview mode
@@ -1587,8 +1659,13 @@ def main():
                 savings_img_tag = f'<img src="file://{savings_image_path_valid}" alt="Savings Chart" style="width: 100%; height: auto; border-radius: 8px;" />'
             else:
                 savings_img_tag = '<p style="color: #999; padding: 20px 0;">No savings accounts found.</p>'
+            if bar_image_path_valid:
+                bar_img_tag = f'<img src="file://{bar_image_path_valid}" alt="Income vs Expenses" style="width: 100%; height: auto; border-radius: 8px;" />'
+            else:
+                bar_img_tag = ''
             htmlBody = (
                 htmlBody.replace("{sankeySection}", sankeySection)
+                        .replace("{barSection}", bar_img_tag)
                         .replace("__SAVINGS_CHART__", savings_img_tag)
                 + javascript_code
             )
@@ -1602,8 +1679,13 @@ def main():
                 savings_img_tag = f'<img src="cid:{savings_cid[1:-1]}" alt="Savings Chart" style="width: 100%; height: auto; border-radius: 8px;" />'
             else:
                 savings_img_tag = '<p style="color: #999; padding: 20px 0;">No savings accounts found.</p>'
+            if bar_image_path_valid:
+                bar_img_tag = f'<img src="cid:{bar_cid[1:-1]}" alt="Income vs Expenses" style="width: 100%; height: auto; border-radius: 8px;" />'
+            else:
+                bar_img_tag = ''
             htmlBody = (
                 htmlBody.replace("{sankeySection}", sankeySection)
+                        .replace("{barSection}", bar_img_tag)
                         .replace("__SAVINGS_CHART__", savings_img_tag)
                 + """
             </body>
@@ -1631,6 +1713,14 @@ def main():
                     img_data, maintype="image", subtype="png", cid=savings_cid
                 )
             print("✅ Savings chart image attached to email")
+        # Attach bar chart image for email mode
+        if not args.preview and bar_image_path_valid and os.path.exists(bar_image_path_valid):
+            with open(bar_image_path_valid, "rb") as img_file:
+                img_data = img_file.read()
+                msg.get_payload()[1].add_related(
+                    img_data, maintype="image", subtype="png", cid=bar_cid
+                )
+            print("✅ Bar chart image attached to email")
         #
         # Check if we're in preview mode
         if args.preview:
