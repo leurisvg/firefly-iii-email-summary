@@ -1091,12 +1091,12 @@ def main():
         # Totals annotations above each bar
         bar_annotations = [
             dict(x="Income", y=income_total, text=f"<b>{_fmtv(income_total)}</b>",
-                 showarrow=False, yanchor="bottom", yshift=6, font=dict(size=9, color="#333")),
+                 showarrow=False, yanchor="bottom", yshift=6, font=dict(size=7, color="#333")),
             dict(x="Expenses", y=expense_total, text=f"<b>{_fmtv(expense_total)}</b>",
-                 showarrow=False, yanchor="bottom", yshift=6, font=dict(size=9, color="#333")),
+                 showarrow=False, yanchor="bottom", yshift=6, font=dict(size=7, color="#333")),
             dict(x=net_label, y=net, text=f"<b>{_fmtv(net)}</b>",
                  showarrow=False, yanchor="bottom" if net >= 0 else "top",
-                 yshift=6 if net >= 0 else -6, font=dict(size=9, color=net_color)),
+                 yshift=6 if net >= 0 else -6, font=dict(size=7, color=net_color)),
         ]
 
         fig_bar.update_layout(
@@ -1116,7 +1116,7 @@ def main():
             showlegend=True,
         )
         try:
-            fig_bar.write_image(bar_image_path, format="png", width=240, height=360, scale=2)
+            fig_bar.write_image(bar_image_path, format="png", width=300, height=420, scale=2)
             bar_image_path_valid = bar_image_path
             print(f"✅ Bar chart saved: {bar_image_path}")
         except Exception as e:
