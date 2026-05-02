@@ -1118,11 +1118,15 @@ def main():
 
         asset_url = config["firefly-url"] + "/api/v1/accounts?type=asset&limit=50"
         asset_resp = s.get(asset_url).json()
+        excluded_accounts = {
+            name.lower() for name in config.get("exclude_accounts", [])
+        }
         savings_accounts = [
             a for a in asset_resp.get("data", [])
             if "credit" not in a["attributes"].get("account_type", "").lower()
+            and a["attributes"]["name"].lower() not in excluded_accounts
         ]
-        print(f"Found {len(savings_accounts)} non-credit-card asset accounts: "
+        print(f"Found {len(savings_accounts)} savings accounts: "
               + ", ".join(a["attributes"]["name"] for a in savings_accounts))
 
         # Fetch monthly balances for each savings account

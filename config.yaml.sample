@@ -37,6 +37,13 @@ email_subject: 'Firefly III: Monthly Report'  # Default subject if not specified
 # Uncomment and set if you want to ping a healthcheck service after successful email
 # healthcheck_url: 'https://hc-ping.com/your-uuid-here'
 
+# Optional: Accounts to exclude from the Savings Accounts chart
+# Useful when credit cards or other non-savings accounts are set as asset accounts in Firefly.
+# Names are case-insensitive.
+# exclude_accounts:
+#   - 'My Visa Card'
+#   - 'American Express'
+
 # ============================================================================
 # NOTES:
 # ============================================================================
