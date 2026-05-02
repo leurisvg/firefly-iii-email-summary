@@ -1288,7 +1288,7 @@ def main():
                     ),
                     row=r, col=c,
                 )
-                x_pad = 0.6
+                x_pad = 0.3
                 fig_savings.update_xaxes(
                     tickangle=0,
                     tickfont=dict(size=9, color="#6b7280"),
@@ -1303,7 +1303,7 @@ def main():
                 valid = [b for b in balances if b is not None]
                 if valid:
                     lo, hi = min(valid), max(valid)
-                    pad = (hi - lo) * 0.10 if hi != lo else abs(hi) * 0.05 or 1
+                    pad = (hi - lo) * 0.05 if hi != lo else abs(hi) * 0.05 or 1
                     y_range = [lo - pad, hi + pad]
                 else:
                     y_range = None
