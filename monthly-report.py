@@ -1291,7 +1291,7 @@ def main():
                 x_pad = 0.3
                 fig_savings.update_xaxes(
                     tickangle=0,
-                    tickfont=dict(size=9, color="#6b7280"),
+                    tickfont=dict(size=6, color="#6b7280"),
                     showgrid=False,
                     showline=True,
                     linecolor="#e5e7eb",
@@ -1310,7 +1310,7 @@ def main():
                 fig_savings.update_yaxes(
                     tickprefix=currencySymbol,
                     tickformat=",.0f",
-                    tickfont=dict(size=9, color="#6b7280"),
+                    tickfont=dict(size=6, color="#6b7280"),
                     showgrid=True,
                     gridcolor="#f0f0f0",
                     gridwidth=1,
