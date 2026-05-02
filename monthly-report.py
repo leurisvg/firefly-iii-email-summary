@@ -1160,6 +1160,8 @@ def main():
                 rows=n_rows, cols=n_cols,
                 subplot_titles=[a["name"] for a in account_series],
                 shared_yaxes=False,
+                horizontal_spacing=0.12,
+                vertical_spacing=0.2,
             )
             palette = [
                 "#667eea", "#28a745", "#fd7e14", "#dc3545", "#17a2b8",
