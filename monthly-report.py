@@ -100,6 +100,19 @@ def convert_amount(amount, from_currency, to_currency, rates):
     return float(amount) * rate, rate
 
 
+_EMOJI_RE = re.compile(
+    "[\U0001F300-\U0001F9FF"
+    "\U00002600-\U000027BF"
+    "\U0001FA00-\U0001FAFF"
+    "\U00002702-\U000027B0"
+    "\U000024C2-\U0001F251]+",
+    flags=re.UNICODE,
+)
+
+def _strip_emoji(text):
+    return _EMOJI_RE.sub("", text).strip()
+
+
 def main():
     # Parse command line arguments
     parser = argparse.ArgumentParser(description="Generate Firefly III monthly report")
@@ -1005,7 +1018,7 @@ def main():
 
         # Prepare data for Plotly Sankey
         node_labels = [
-            f"{node['label']}: {_sfmt(node_values[i])}"
+            f"{_strip_emoji(node['label'])}: {_sfmt(node_values[i])}"
             for i, node in enumerate(sankeyNodes)
         ]
         link_sources = [link["source"] for link in sankeyLinks]
@@ -1230,7 +1243,7 @@ def main():
             n_rows = (n + cols_per_row - 1) // cols_per_row
             fig_savings = make_subplots(
                 rows=n_rows, cols=n_cols,
-                subplot_titles=[a["name"] for a in account_series],
+                subplot_titles=[_strip_emoji(a["name"]) for a in account_series],
                 shared_yaxes=False,
                 horizontal_spacing=0.10,
                 vertical_spacing=0.15,
@@ -1291,7 +1304,7 @@ def main():
                 x_pad = 0.3
                 fig_savings.update_xaxes(
                     tickangle=0,
-                    tickfont=dict(size=6, color="#6b7280"),
+                    tickfont=dict(size=7, color="#6b7280"),
                     showgrid=False,
                     showline=True,
                     linecolor="#e5e7eb",
@@ -1310,12 +1323,12 @@ def main():
                 fig_savings.update_yaxes(
                     tickprefix=currencySymbol,
                     tickformat=",.0f",
-                    tickfont=dict(size=6, color="#6b7280"),
+                    tickfont=dict(size=7, color="#6b7280"),
                     showgrid=True,
                     gridcolor="#f0f0f0",
                     gridwidth=1,
                     zeroline=False,
-                    nticks=4,
+                    nticks=6,
                     range=y_range,
                     row=r, col=c,
                 )
