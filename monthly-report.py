@@ -1052,51 +1052,71 @@ def main():
         income_cats.sort(key=lambda x: -x[1])
         expense_cats.sort(key=lambda x: -x[1])
 
+        # Assign a stable color per unique category name across both bars
+        all_cat_names = list(dict.fromkeys([n for n, _ in income_cats] + [n for n, _ in expense_cats]))
+        cat_color = {name: bar_palette[i % len(bar_palette)] for i, name in enumerate(all_cat_names)}
+
+        income_total = sum(v for _, v in income_cats)
+        expense_total = sum(v for _, v in expense_cats)
+        net = float(netChangeThisMonth)
+        net_color = "#28a745" if net >= 0 else "#dc3545"
+        net_label = "Savings" if net >= 0 else "Overspent"
+
         fig_bar = go.Figure()
-        for i, (name, val) in enumerate(income_cats):
+        for name, val in income_cats:
             fig_bar.add_trace(go.Bar(
                 name=name, x=["Income"], y=[val],
-                marker_color=bar_palette[i % len(bar_palette)],
+                marker_color=cat_color[name],
                 text=[_compact(val)], textposition="inside",
                 textfont=dict(size=9, color="white"),
                 showlegend=True,
-                legendgroup="income",
+                legendgroup=name,
             ))
-        for i, (name, val) in enumerate(expense_cats):
+        for name, val in expense_cats:
             fig_bar.add_trace(go.Bar(
                 name=name, x=["Expenses"], y=[val],
-                marker_color=bar_palette[i % len(bar_palette)],
+                marker_color=cat_color[name],
                 text=[_compact(val)], textposition="inside",
                 textfont=dict(size=9, color="white"),
-                showlegend=False,
-                legendgroup="expenses",
+                showlegend=name not in [n for n, _ in income_cats],
+                legendgroup=name,
             ))
-        net = float(netChangeThisMonth)
-        net_color = "#28a745" if net >= 0 else "#dc3545"
-        net_label = ("Savings" if net >= 0 else "Overspent")
         fig_bar.add_trace(go.Bar(
             name=net_label, x=[net_label], y=[net],
             marker_color=net_color,
-            text=[_compact(net)], textposition="outside",
-            textfont=dict(size=10, color=net_color),
+            text=[""], textposition="inside",
             showlegend=False,
         ))
+
+        # Totals annotations above each bar
+        bar_annotations = [
+            dict(x="Income", y=income_total, text=f"<b>{_compact(income_total)}</b>",
+                 showarrow=False, yanchor="bottom", yshift=6, font=dict(size=11, color="#333")),
+            dict(x="Expenses", y=expense_total, text=f"<b>{_compact(expense_total)}</b>",
+                 showarrow=False, yanchor="bottom", yshift=6, font=dict(size=11, color="#333")),
+            dict(x=net_label, y=net, text=f"<b>{_compact(net)}</b>",
+                 showarrow=False, yanchor="bottom" if net >= 0 else "top",
+                 yshift=6 if net >= 0 else -6, font=dict(size=11, color=net_color)),
+        ]
+
         fig_bar.update_layout(
             barmode="stack",
             paper_bgcolor="white",
             plot_bgcolor="#f8f9fa",
-            font=dict(family="Inter, Arial", size=11),
-            margin=dict(l=10, r=10, t=20, b=10),
+            font=dict(family="Inter, Arial", size=10),
+            margin=dict(l=10, r=10, t=30, b=10),
+            annotations=bar_annotations,
             legend=dict(
                 orientation="v", x=1.02, y=1,
-                font=dict(size=9),
+                font=dict(size=8),
                 bgcolor="rgba(255,255,255,0.8)",
+                tracegroupgap=2,
             ),
             yaxis=dict(tickprefix=currencySymbol, tickformat=",.0f", gridcolor="#e9ecef"),
             showlegend=True,
         )
         try:
-            fig_bar.write_image(bar_image_path, format="png", width=420, height=600, scale=2)
+            fig_bar.write_image(bar_image_path, format="png", width=340, height=460, scale=2)
             bar_image_path_valid = bar_image_path
             print(f"✅ Bar chart saved: {bar_image_path}")
         except Exception as e:
