@@ -1091,12 +1091,12 @@ def main():
         # Totals annotations above each bar
         bar_annotations = [
             dict(x="Income", y=income_total, text=f"<b>{_fmtv(income_total)}</b>",
-                 showarrow=False, yanchor="bottom", yshift=6, font=dict(size=7, color="#333")),
+                 showarrow=False, yanchor="bottom", yshift=6, font=dict(size=6, color="#333")),
             dict(x="Expenses", y=expense_total, text=f"<b>{_fmtv(expense_total)}</b>",
-                 showarrow=False, yanchor="bottom", yshift=6, font=dict(size=7, color="#333")),
+                 showarrow=False, yanchor="bottom", yshift=6, font=dict(size=6, color="#333")),
             dict(x=net_label, y=net, text=f"<b>{_fmtv(net)}</b>",
                  showarrow=False, yanchor="bottom" if net >= 0 else "top",
-                 yshift=6 if net >= 0 else -6, font=dict(size=7, color=net_color)),
+                 yshift=6 if net >= 0 else -6, font=dict(size=6, color=net_color)),
         ]
 
         fig_bar.update_layout(
@@ -1114,7 +1114,9 @@ def main():
                 itemsizing="constant",
                 itemwidth=30,
             ),
-            yaxis=dict(tickprefix=currencySymbol, tickformat=",.0f", gridcolor="#e9ecef"),
+            yaxis=dict(tickprefix=currencySymbol, tickformat=".3s", gridcolor="#e9ecef",
+                       tickfont=dict(size=6)),
+            xaxis=dict(tickfont=dict(size=6)),
             showlegend=True,
         )
         try:
