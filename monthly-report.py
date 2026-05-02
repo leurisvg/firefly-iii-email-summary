@@ -1290,10 +1290,10 @@ def main():
                     ),
                     row=r, col=c,
                 )
-                fig_savings.update_xaxes(tickangle=-30, tickfont=dict(size=5), row=r, col=c)
+                fig_savings.update_xaxes(tickangle=-30, tickfont=dict(size=7), row=r, col=c)
                 fig_savings.update_yaxes(
                     tickprefix=currencySymbol, tickformat=",.0f",
-                    tickfont=dict(size=5), row=r, col=c
+                    tickfont=dict(size=7), row=r, col=c
                 )
 
             chart_width = max(800, 300 * n_cols)
