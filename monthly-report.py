@@ -1120,7 +1120,7 @@ def main():
             showlegend=True,
         )
         try:
-            fig_bar.write_image(bar_image_path, format="png", width=280, height=400, scale=2)
+            fig_bar.write_image(bar_image_path, format="png", width=260, height=380, scale=2)
             bar_image_path_valid = bar_image_path
             print(f"✅ Bar chart saved: {bar_image_path}")
         except Exception as e:
