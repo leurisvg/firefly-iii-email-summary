@@ -574,15 +574,19 @@ def main():
         # Separate non-zero and zero categories
         nonZeroCategories = [c for c in totals if float(c["total"]) != 0]
         zeroCategories = [c for c in totals if float(c["total"]) == 0]
+        maxCategoryAbs = max((abs(float(c["total"])) for c in nonZeroCategories), default=1)
 
         # Add non-zero categories
         for category in nonZeroCategories:
             total = float(category["total"])
             color_class = "positive" if total > 0 else "negative"
+            rel_pct = (abs(total) / maxCategoryAbs) * 100
+            cat_bar = (
+                f'<div style="margin-top:4px;width:{rel_pct:.1f}%;height:3px;'
+                f'background:rgba(102,126,234,0.35);border-radius:2px;line-height:3px;font-size:0;"></div>'
+            )
             categoriesTableBody += (
-                "<tr><td>"
-                + category["name"]
-                + "</td>"
+                f"<tr><td>{category['name']}{cat_bar}</td>"
                 + _amt_cell(total, category.get("display"), color_class)
                 + _mom_cell(total, float(category.get("prev_total", 0)))
                 + "</tr>"
@@ -617,13 +621,23 @@ def main():
             # Add non-zero budgets
             for budget in nonZeroBudgets:
                 remaining = float(budget["remaining"])
+                limit_f   = float(budget["limit"])
+                spent_f   = abs(float(budget["spent"]))
                 remaining_class = "negative" if remaining < 0 else "positive"
+                if limit_f > 0:
+                    pct_raw  = (spent_f / limit_f) * 100
+                    pct_fill = min(pct_raw, 100)
+                    bar_color = "#ef4444" if pct_raw >= 100 else "#f59e0b" if pct_raw >= 80 else "#10b981"
+                    bar_html = (
+                        f'<div style="margin-top:6px;background:#f0f0f0;border-radius:3px;height:4px;width:100%;line-height:4px;font-size:0;">'
+                        f'<div style="width:{pct_fill:.1f}%;height:4px;border-radius:3px;background:{bar_color};line-height:4px;font-size:0;"></div></div>'
+                    )
+                else:
+                    bar_html = ""
                 budgetsTableBody += (
-                    "<tr><td>"
-                    + budget["name"]
-                    + "</td>"
-                    + _amt_cell(float(budget["limit"]), budget.get("limit_display"), "", )
-                    + _amt_cell(abs(float(budget["spent"])), budget.get("spent_display"), "negative")
+                    f"<tr><td>{budget['name']}{bar_html}</td>"
+                    + _amt_cell(limit_f, budget.get("limit_display"), "")
+                    + _amt_cell(spent_f, budget.get("spent_display"), "negative")
                     + _amt_cell(remaining, None, remaining_class)
                     + "</tr>"
                 )
@@ -649,46 +663,42 @@ def main():
         #
         # Set up the general information table
         print("Building financial overview...")
-        generalTableBody = "<table>"
-        generalTableBody += (
-            "<tr><td>Spent this month:</td>"
-            + _amt_cell(abs(spentThisMonth), spentThisMonth_display, "negative")
-            + "</tr>"
+
+        def _stat_card(label, value_str, color):
+            return (
+                f'<td style="width:33.33%;padding:8px;vertical-align:top;">'
+                f'<div style="background:#f8f9fa;border-radius:8px;padding:16px;border-left:4px solid {color};">'
+                f'<div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.8px;color:#6b7280;margin-bottom:8px;">{label}</div>'
+                f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:18px;font-weight:700;color:#1a1a1a;">{value_str}</div>'
+                f'</div></td>'
+            )
+
+        net_m_color = "#10b981" if netChangeThisMonth >= 0 else "#ef4444"
+        net_y_color = "#10b981" if netChangeThisYear  >= 0 else "#ef4444"
+        nw_color    = "#10b981" if netWorth           >= 0 else "#ef4444"
+
+        generalTableBody = (
+            '<table style="width:100%;border-collapse:collapse;margin-top:0;">'
+            '<tr><td colspan="3" style="padding:4px 8px 2px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#9ca3af;border-bottom:none;">This Month</td></tr>'
+            '<tr>'
+            + _stat_card("Earned", _fmtv(earnedThisMonth),      "#10b981")
+            + _stat_card("Spent",  _fmtv(abs(spentThisMonth)),  "#ef4444")
+            + _stat_card("Net",    _fmtv(netChangeThisMonth),   net_m_color)
+            + '</tr>'
+            '<tr><td colspan="3" style="padding:12px 8px 2px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#9ca3af;border-bottom:none;">Year to Date</td></tr>'
+            '<tr>'
+            + _stat_card("Earned", _fmtv(earnedThisYear),       "#10b981")
+            + _stat_card("Spent",  _fmtv(abs(spentThisYear)),   "#ef4444")
+            + _stat_card("Net",    _fmtv(netChangeThisYear),    net_y_color)
+            + '</tr>'
+            '<tr><td colspan="3" style="padding:12px 8px 2px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#9ca3af;border-bottom:none;">Net Worth</td></tr>'
+            f'<tr><td colspan="3" style="padding:8px;border-bottom:none;">'
+            f'<div style="background:#f8f9fa;border-radius:8px;padding:16px;border-left:4px solid {nw_color};">'
+            f'<div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.8px;color:#6b7280;margin-bottom:8px;">Current Net Worth</div>'
+            f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:24px;font-weight:700;color:{nw_color};">'
+            + _fmtv(netWorth)
+            + '</div></div></td></tr></table>'
         )
-        generalTableBody += (
-            "<tr><td>Earned this month:</td>"
-            + _amt_cell(earnedThisMonth, earnedThisMonth_display, "positive")
-            + "</tr>"
-        )
-        net_class = "positive" if netChangeThisMonth > 0 else "negative"
-        generalTableBody += (
-            '<tr class="summary-row"><td><strong>Net change this month:</strong></td>'
-            + _amt_cell(netChangeThisMonth, netChangeThisMonth_display, net_class)
-            + "</tr>"
-        )
-        generalTableBody += (
-            "<tr><td>Spent so far this year:</td>"
-            + _amt_cell(abs(spentThisYear), spentThisYear_display, "negative")
-            + "</tr>"
-        )
-        generalTableBody += (
-            "<tr><td>Earned so far this year:</td>"
-            + _amt_cell(earnedThisYear, earnedThisYear_display, "positive")
-            + "</tr>"
-        )
-        net_year_class = "positive" if netChangeThisYear > 0 else "negative"
-        generalTableBody += (
-            '<tr class="summary-row"><td><strong>Net change so far this year:</strong></td>'
-            + _amt_cell(netChangeThisYear, netChangeThisYear_display, net_year_class)
-            + "</tr>"
-        )
-        networth_class = "positive" if netWorth > 0 else "negative"
-        generalTableBody += (
-            f'<tr class="total-row {networth_class}"><td><strong>Current net worth:</strong></td>'
-            + _amt_cell(netWorth, netWorth_display, "")
-            + "</tr>"
-        )
-        generalTableBody += "</table>"
         #
         # Compute savings rate and build highlights section
         if earnedThisMonth > 0:
@@ -696,17 +706,32 @@ def main():
         else:
             savingsRate = 0.0
 
-        if savingsRate > 0:
-            pill_class = "positive"
-            pill_text = f"💰 You saved {savingsRate:.1f}% of your income this month"
-        else:
-            pill_class = "negative"
-            pill_text = f"⚠️ You spent {abs(savingsRate):.1f}% more than you earned this month"
+        kpi_earned  = _fmtv(earnedThisMonth)
+        kpi_spent   = _fmtv(abs(spentThisMonth))
+        kpi_net     = _fmtv(netChangeThisMonth)
+        kpi_net_cls = "kpi-positive" if netChangeThisMonth >= 0 else "kpi-negative"
+        kpi_sr_cls  = "kpi-blue" if savingsRate >= 0 else "kpi-negative"
+        kpi_sr_text = f"{savingsRate:.1f}%"
 
         highlightsSection = (
-            '<div class="highlights">'
-            f'<span class="highlight-pill {pill_class}">{pill_text}</span>'
-            "</div>"
+            '<div class="kpi-row">'
+            '<div class="kpi-card kpi-green">'
+            '<div class="kpi-label">Earned</div>'
+            f'<div class="kpi-value">{kpi_earned}</div>'
+            '</div>'
+            '<div class="kpi-card kpi-red">'
+            '<div class="kpi-label">Spent</div>'
+            f'<div class="kpi-value">{kpi_spent}</div>'
+            '</div>'
+            f'<div class="kpi-card {kpi_net_cls}">'
+            '<div class="kpi-label">Net Change</div>'
+            f'<div class="kpi-value">{kpi_net}</div>'
+            '</div>'
+            f'<div class="kpi-card {kpi_sr_cls}">'
+            '<div class="kpi-label">Savings Rate</div>'
+            f'<div class="kpi-value">{kpi_sr_text}</div>'
+            '</div>'
+            '</div>'
         )
         #
         # Build Sankey chart data - Income → Budgets → Categories
@@ -962,10 +987,10 @@ def main():
             elif node_id.startswith("budget_"):
                 node_colors.append("rgba(156, 39, 176, 0.8)")  # Purple for budgets
             elif node_id == "net_savings":
-                node_colors.append("rgba(40, 167, 69, 0.8)")  # Green for savings
+                node_colors.append("rgba(16, 185, 129, 0.8)")  # Green for savings
             else:  # categories
                 node_colors.append(
-                    "rgba(220, 53, 69, 0.8)"
+                    "rgba(239, 68, 68, 0.8)"
                 )  # Red for expense categories
 
         # Define colors for links
@@ -978,13 +1003,13 @@ def main():
             if target_node["id"] == "income_hub":
                 link_colors.append("rgba(76, 175, 80, 0.4)")  # Income flow
             elif target_node["id"] == "net_savings":
-                link_colors.append("rgba(40, 167, 69, 0.4)")  # Savings flow
+                link_colors.append("rgba(16, 185, 129, 0.4)")  # Savings flow
             elif source_node["id"] == "income_hub" and target_node["id"].startswith(
                 "budget_"
             ):
                 link_colors.append("rgba(156, 39, 176, 0.4)")  # Income to budgets
             elif source_node["id"].startswith("budget_"):
-                link_colors.append("rgba(220, 53, 69, 0.4)")  # Budget to expenses
+                link_colors.append("rgba(239, 68, 68, 0.4)")  # Budget to expenses
             else:
                 link_colors.append("rgba(27, 94, 32, 0.4)")  # Revenue sources
 
@@ -1042,7 +1067,7 @@ def main():
         bar_image_path_valid = None
 
         bar_palette = [
-            "#667eea", "#28a745", "#fd7e14", "#dc3545", "#17a2b8",
+            "#667eea", "#10b981", "#fd7e14", "#ef4444", "#17a2b8",
             "#6f42c1", "#20c997", "#e83e8c", "#ffc107", "#343a40",
             "#a0522d", "#5f9ea0", "#ff6347", "#4169e1", "#32cd32",
         ]
@@ -1059,7 +1084,7 @@ def main():
         income_total = sum(v for _, v in income_cats)
         expense_total = sum(v for _, v in expense_cats)
         net = float(netChangeThisMonth)
-        net_color = "#28a745" if net >= 0 else "#dc3545"
+        net_color = "#10b981" if net >= 0 else "#ef4444"
         net_label = "Savings" if net >= 0 else "Overspent"
 
         fig_bar = go.Figure()
@@ -1266,7 +1291,7 @@ def main():
                 vertical_spacing=0.2,
             )
             palette = [
-                "#667eea", "#28a745", "#fd7e14", "#dc3545", "#17a2b8",
+                "#667eea", "#10b981", "#fd7e14", "#ef4444", "#17a2b8",
                 "#6f42c1", "#20c997", "#e83e8c", "#ffc107", "#343a40",
             ]
             for idx, acct in enumerate(account_series):
@@ -1396,9 +1421,11 @@ def main():
 						color: #667eea;
 						font-size: 22px;
 						font-weight: 700;
-						border-bottom: 2px solid #f0f0f0;
-						padding-bottom: 10px;
+						border-left: 4px solid #667eea;
+						padding-left: 12px;
+						padding-bottom: 0;
 						letter-spacing: -0.3px;
+						line-height: 1.3;
 					}}
 					table {{
 						width: 100%;
@@ -1424,11 +1451,14 @@ def main():
 					tr:last-child td {{
 						border-bottom: none;
 					}}
-					tr:hover {{
-						background-color: #f8f9fa;
+					tr:nth-child(even) td {{
+						background-color: #fafafa;
 					}}
-					.total-row:hover {{
-						background-color: #667eea;
+					tr:hover td {{
+						background-color: #f0f4ff;
+					}}
+					.total-row:hover td {{
+						background-color: #5a6fd6;
 					}}
 					.amount {{
 						font-weight: 600;
@@ -1438,10 +1468,10 @@ def main():
 						white-space: nowrap;
 					}}
 					.positive {{
-						color: #28a745;
+						color: #10b981;
 					}}
 					.negative {{
-						color: #dc3545;
+						color: #ef4444;
 					}}
 					.zero {{
 						color: #999;
@@ -1462,26 +1492,43 @@ def main():
 					.total-row .exchange-rate {{
 						color: rgba(255, 255, 255, 0.85);
 					}}
-					.highlights {{
-						display: flex;
-						gap: 12px;
+					.kpi-row {{
+						display: table;
+						width: 100%;
+						border-collapse: separate;
+						border-spacing: 12px 0;
 						margin-bottom: 20px;
-						flex-wrap: wrap;
 					}}
-					.highlight-pill {{
-						padding: 10px 18px;
-						border-radius: 20px;
+					.kpi-card {{
+						display: table-cell;
+						width: 25%;
+						background: white;
+						border-radius: 10px;
+						padding: 18px 16px;
+						box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+						vertical-align: top;
+						border-top: 4px solid #ccc;
+					}}
+					.kpi-label {{
+						font-size: 11px;
 						font-weight: 600;
-						font-size: 15px;
+						text-transform: uppercase;
+						letter-spacing: 0.8px;
+						color: #6b7280;
+						margin-bottom: 6px;
 					}}
-					.highlight-pill.positive {{
-						background: #d4edda;
-						color: #155724;
+					.kpi-value {{
+						font-family: 'JetBrains Mono', 'SF Mono', 'Monaco', monospace;
+						font-size: 20px;
+						font-weight: 700;
+						color: #1a1a1a;
+						white-space: nowrap;
 					}}
-					.highlight-pill.negative {{
-						background: #f8d7da;
-						color: #721c24;
-					}}
+					.kpi-green {{ border-top-color: #10b981; }}
+					.kpi-red {{ border-top-color: #ef4444; }}
+					.kpi-positive {{ border-top-color: #10b981; }}
+					.kpi-negative {{ border-top-color: #ef4444; }}
+					.kpi-blue {{ border-top-color: #667eea; }}
 					.mom-delta {{
 						font-size: 0.85em;
 						font-weight: 500;
@@ -1497,10 +1544,10 @@ def main():
 						font-size: 17px;
 					}}
 					.total-row.positive {{
-						background-color: #28a745;
+						background-color: #10b981;
 					}}
 					.total-row.negative {{
-						background-color: #dc3545;
+						background-color: #ef4444;
 					}}
 					.total-row:hover {{
 						opacity: 0.95;
@@ -1551,6 +1598,11 @@ def main():
 						}}
 						th {{
 							font-size: 11px;
+						}}
+						.kpi-card {{
+							display: block;
+							width: 100%;
+							margin-bottom: 12px;
 						}}
 					}}
 				</style>
@@ -1636,7 +1688,7 @@ def main():
                                 const toLabel = c.dataset.data[c.dataIndex].to;
                                 const fromLabel = c.dataset.data[c.dataIndex].from;
                                 // Surplus Savings (green)
-                                if (toLabel === 'Savings' || toLabel === 'Net Savings') return 'rgba(40, 167, 69, 0.7)';
+                                if (toLabel === 'Savings' || toLabel === 'Net Savings') return 'rgba(16, 185, 129, 0.7)';
                                 // Income categories (light green)
                                 if (toLabel !== 'Total Income' && fromLabel !== 'Total Income') return 'rgba(76, 175, 80, 0.7)';
                                 // Income hub (blue)
@@ -1644,7 +1696,7 @@ def main():
                                 // Budgets (purple)
                                 if (fromLabel === 'Total Income' && toLabel !== 'Savings' && toLabel !== 'Net Savings') return 'rgba(156, 39, 176, 0.7)';
                                 // Categories (red)
-                                return 'rgba(220, 53, 69, 0.7)';
+                                return 'rgba(239, 68, 68, 0.7)';
                             }},
                             borderWidth: 0,
                             nodeWidth: 10,
