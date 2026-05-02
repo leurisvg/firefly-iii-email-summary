@@ -1153,8 +1153,11 @@ def main():
         savings_image_path_valid = None
         if account_series:
             n = len(account_series)
+            cols_per_row = 3
+            n_cols = min(n, cols_per_row)
+            n_rows = (n + cols_per_row - 1) // cols_per_row
             fig_savings = make_subplots(
-                rows=1, cols=n,
+                rows=n_rows, cols=n_cols,
                 subplot_titles=[a["name"] for a in account_series],
                 shared_yaxes=False,
             )
@@ -1164,6 +1167,8 @@ def main():
             ]
             for idx, acct in enumerate(account_series):
                 color = palette[idx % len(palette)]
+                r = idx // cols_per_row + 1
+                c = idx % cols_per_row + 1
                 fig_savings.add_trace(
                     go.Scatter(
                         x=month_labels,
@@ -1175,25 +1180,26 @@ def main():
                         showlegend=False,
                         hovertemplate="%{x}: " + currencySymbol + "%{y:,.2f}<extra></extra>",
                     ),
-                    row=1, col=idx + 1,
+                    row=r, col=c,
                 )
-                fig_savings.update_xaxes(tickangle=-30, row=1, col=idx + 1)
+                fig_savings.update_xaxes(tickangle=-30, row=r, col=c)
                 fig_savings.update_yaxes(
-                    tickprefix=currencySymbol, tickformat=",.0f", row=1, col=idx + 1
+                    tickprefix=currencySymbol, tickformat=",.0f", row=r, col=c
                 )
 
-            chart_width = max(800, 300 * n)
+            chart_width = max(800, 300 * n_cols)
+            chart_height = 280 * n_rows
             fig_savings.update_layout(
                 paper_bgcolor="white",
                 plot_bgcolor="#f8f9fa",
                 font=dict(family="Inter, Arial", size=12),
                 margin=dict(l=20, r=20, t=50, b=60),
-                height=280,
+                height=chart_height,
             )
             try:
                 fig_savings.write_image(
                     savings_image_path, format="png",
-                    width=chart_width, height=280, scale=2,
+                    width=chart_width, height=chart_height, scale=2,
                 )
                 savings_image_path_valid = savings_image_path
                 print(f"✅ Savings chart saved: {savings_image_path}")
