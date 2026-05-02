@@ -1288,6 +1288,7 @@ def main():
                     ),
                     row=r, col=c,
                 )
+                x_pad = 0.6
                 fig_savings.update_xaxes(
                     tickangle=0,
                     tickfont=dict(size=9, color="#6b7280"),
@@ -1296,12 +1297,13 @@ def main():
                     linecolor="#e5e7eb",
                     linewidth=1,
                     zeroline=False,
+                    range=[-x_pad, len(month_labels) - 1 + x_pad],
                     row=r, col=c,
                 )
                 valid = [b for b in balances if b is not None]
                 if valid:
                     lo, hi = min(valid), max(valid)
-                    pad = (hi - lo) * 0.18 if hi != lo else abs(hi) * 0.1 or 1
+                    pad = (hi - lo) * 0.10 if hi != lo else abs(hi) * 0.05 or 1
                     y_range = [lo - pad, hi + pad]
                 else:
                     y_range = None
