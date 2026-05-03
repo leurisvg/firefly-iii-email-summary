@@ -36,6 +36,10 @@ import argparse
 import json
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
 from email.mime.image import MIMEImage
 
 from email.message import EmailMessage
@@ -1418,74 +1422,129 @@ def main():
         else:
             savings_section_html = ""
 
-        # Build the daily calendar chart (expenses vs income per day)
+        # Build the daily calendar chart – month-grid style
         calendar_image_path = os.path.join(base_dir, "calendar_chart.png")
         calendar_html_div = ""
 
-        def _fmt_bar_label(v: float) -> str:
-            if v == 0:
-                return ""
-            if v >= 1000:
-                return f"{v / 1000:.1f}k"
-            return f"{v:.0f}"
-
         try:
             print("Generating daily calendar chart...")
-            fig_calendar = go.Figure()
-            fig_calendar.add_trace(go.Bar(
-                name="Expenses",
-                x=day_labels,
-                y=expense_by_day,
-                marker_color="#ef4444",
-                text=[_fmt_bar_label(v) for v in expense_by_day],
-                textposition="outside",
-                textfont=dict(size=8, color="#b91c1c"),
-                hovertemplate="Day %{x}: " + currencySymbol + "%{y:,.2f}<extra>Expenses</extra>",
-            ))
-            fig_calendar.add_trace(go.Bar(
-                name="Income",
-                x=day_labels,
-                y=income_by_day,
-                marker_color="#10b981",
-                text=[_fmt_bar_label(v) for v in income_by_day],
-                textposition="outside",
-                textfont=dict(size=8, color="#047857"),
-                hovertemplate="Day %{x}: " + currencySymbol + "%{y:,.2f}<extra>Income</extra>",
-            ))
-            fig_calendar.update_layout(
-                barmode="group",
-                bargap=0.20,
-                bargroupgap=0.05,
-                plot_bgcolor="white",
-                paper_bgcolor="white",
-                font=dict(family="Inter, Arial", size=11, color="#1a1a1a"),
-                margin=dict(l=60, r=20, t=50, b=40),
-                height=450,
-                showlegend=True,
-                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-                xaxis=dict(
-                    title="Day of Month",
-                    showgrid=False,
-                    tickmode="linear",
-                    dtick=1,
-                ),
-                yaxis=dict(
-                    tickprefix=currencySymbol,
-                    tickformat=",.0f",
-                    showgrid=True,
-                    gridcolor="#f0f0f0",
-                    zeroline=False,
-                ),
+
+            import calendar as _cal
+
+            # colours
+            BG_OUTER   = "#151e2d"
+            BG_CELL    = "#1c2a3a"
+            BG_EMPTY   = "#131b28"
+            TEXT_HDR   = "#8a9bb0"
+            TEXT_DAY   = "#d0dce8"
+            COL_INC    = "#3dd68c"
+            COL_EXP    = "#f06292"
+
+            week_days  = ["M", "T", "W", "T", "F", "S", "S"]
+            first_wd   = _cal.monthrange(startDate.year, startDate.month)[0]  # 0=Mon
+            n_days     = days_in_month
+            n_cols     = 7
+            n_rows     = ((first_wd + n_days - 1) // 7) + 1
+
+            cell_w, cell_h = 1.0, 1.0
+            fig_w = n_cols * cell_w + 0.2
+            fig_h = (n_rows + 1) * cell_h + 0.2   # +1 for header row
+
+            fig_cal, ax_cal = plt.subplots(figsize=(fig_w * 1.4, fig_h * 1.4))
+            fig_cal.patch.set_facecolor(BG_OUTER)
+            ax_cal.set_facecolor(BG_OUTER)
+            ax_cal.set_xlim(0, n_cols)
+            ax_cal.set_ylim(0, n_rows + 1)
+            ax_cal.axis("off")
+
+            # header row (day names)
+            for c, label in enumerate(week_days):
+                ax_cal.text(
+                    c + 0.5, n_rows + 0.65, label,
+                    ha="center", va="center",
+                    color=TEXT_HDR, fontsize=9, fontweight="bold",
+                )
+
+            max_val = max(max(expense_by_day, default=0), max(income_by_day, default=0)) or 1.0
+
+            def _draw_cell(col, row, day_num, exp_val, inc_val):
+                x0, y0 = col * cell_w, row * cell_h
+                pad = 0.05
+
+                # cell background
+                rect = mpatches.FancyBboxPatch(
+                    (x0 + pad, y0 + pad),
+                    cell_w - 2 * pad, cell_h - 2 * pad,
+                    boxstyle="round,pad=0.02",
+                    linewidth=0,
+                    facecolor=BG_CELL,
+                )
+                ax_cal.add_patch(rect)
+
+                # day number (top-right)
+                ax_cal.text(
+                    x0 + cell_w - pad - 0.08, y0 + cell_h - pad - 0.1,
+                    str(day_num),
+                    ha="right", va="top",
+                    color=TEXT_DAY, fontsize=7.5, fontweight="bold",
+                )
+
+                # mini bars
+                bar_area_h = cell_h * 0.52
+                bar_area_y0 = y0 + pad + 0.04
+                bar_w = cell_w * 0.18
+                gap   = cell_w * 0.05
+                total_bar_w = 2 * bar_w + gap
+                bar_x0 = x0 + (cell_w - total_bar_w) / 2
+
+                for val, color, bx in [
+                    (inc_val,  COL_INC, bar_x0),
+                    (exp_val,  COL_EXP, bar_x0 + bar_w + gap),
+                ]:
+                    if val > 0:
+                        bh = (val / max_val) * bar_area_h
+                        brect = mpatches.Rectangle(
+                            (bx, bar_area_y0),
+                            bar_w, bh,
+                            linewidth=0, facecolor=color, alpha=0.9,
+                        )
+                        ax_cal.add_patch(brect)
+
+            col = first_wd
+            for day in range(1, n_days + 1):
+                row_from_top = (first_wd + day - 1) // 7
+                row = n_rows - 1 - row_from_top   # flip so week 1 is at top
+                exp = expense_by_day[day - 1]
+                inc = income_by_day[day - 1]
+                _draw_cell(col, row, day, exp, inc)
+                col = (col + 1) % 7
+
+            # legend
+            legend_y = -0.02
+            for color, label in [(COL_INC, "Income"), (COL_EXP, "Expenses")]:
+                patch = mpatches.Patch(color=color, label=label)
+            ax_cal.legend(
+                handles=[
+                    mpatches.Patch(color=COL_INC, label="Income"),
+                    mpatches.Patch(color=COL_EXP, label="Expenses"),
+                ],
+                loc="lower right",
+                bbox_to_anchor=(1.0, -0.04),
+                ncol=2,
+                frameon=False,
+                fontsize=8,
+                labelcolor=TEXT_HDR,
             )
-            fig_calendar.write_image(
-                calendar_image_path, format="png", width=1400, height=450, scale=2
-            )
+
+            plt.tight_layout(pad=0.3)
+            fig_cal.savefig(calendar_image_path, dpi=150, bbox_inches="tight",
+                            facecolor=BG_OUTER)
+            plt.close(fig_cal)
             print("✅ Calendar chart generated")
-            calendar_html_div = fig_calendar.to_html(
-                include_plotlyjs=False, full_html=False, div_id="calendar-chart"
-            )
+            calendar_html_div = f'<img src="{calendar_image_path}" style="width:100%">'
         except Exception as e:
             print(f"⚠️  Warning: Could not generate calendar chart: {e}")
+            import traceback as _tb; _tb.print_exc()
             calendar_image_path = None
 
         #
