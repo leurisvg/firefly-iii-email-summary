@@ -1431,14 +1431,14 @@ def main():
 
             import calendar as _cal
 
-            # colours
-            BG_OUTER   = "#151e2d"
-            BG_CELL    = "#1c2a3a"
-            BG_EMPTY   = "#131b28"
-            TEXT_HDR   = "#8a9bb0"
-            TEXT_DAY   = "#d0dce8"
-            COL_INC    = "#3dd68c"
-            COL_EXP    = "#f06292"
+            # colours – match report light theme
+            BG_OUTER   = "#f5f5f5"
+            BG_CELL    = "#ffffff"
+            TEXT_HDR   = "#6c757d"
+            TEXT_DAY   = "#495057"
+            CELL_BORDER = "#e9ecef"
+            COL_INC    = "#10b981"
+            COL_EXP    = "#ef4444"
 
             week_days  = ["M", "T", "W", "T", "F", "S", "S"]
             first_wd   = _cal.monthrange(startDate.year, startDate.month)[0]  # 0=Mon
@@ -1447,97 +1447,92 @@ def main():
             n_rows     = ((first_wd + n_days - 1) // 7) + 1
 
             cell_w, cell_h = 1.0, 1.0
-            fig_w = n_cols * cell_w + 0.2
-            fig_h = (n_rows + 1) * cell_h + 0.2   # +1 for header row
+            fig_w = n_cols * cell_w
+            fig_h = (n_rows + 0.5) * cell_h   # 0.5 for header row
 
-            fig_cal, ax_cal = plt.subplots(figsize=(fig_w * 1.4, fig_h * 1.4))
+            fig_cal, ax_cal = plt.subplots(figsize=(fig_w * 1.1, fig_h * 1.1))
             fig_cal.patch.set_facecolor(BG_OUTER)
             ax_cal.set_facecolor(BG_OUTER)
             ax_cal.set_xlim(0, n_cols)
-            ax_cal.set_ylim(0, n_rows + 1)
+            ax_cal.set_ylim(0, n_rows + 0.5)
             ax_cal.axis("off")
 
             # header row (day names)
             for c, label in enumerate(week_days):
                 ax_cal.text(
-                    c + 0.5, n_rows + 0.65, label,
+                    c + 0.5, n_rows + 0.25, label,
                     ha="center", va="center",
-                    color=TEXT_HDR, fontsize=9, fontweight="bold",
+                    color=TEXT_HDR, fontsize=8, fontweight="600",
                 )
 
             max_val = max(max(expense_by_day, default=0), max(income_by_day, default=0)) or 1.0
 
             def _draw_cell(col, row, day_num, exp_val, inc_val):
                 x0, y0 = col * cell_w, row * cell_h
-                pad = 0.05
+                pad = 0.04
 
-                # cell background
+                # white cell with border
                 rect = mpatches.FancyBboxPatch(
                     (x0 + pad, y0 + pad),
                     cell_w - 2 * pad, cell_h - 2 * pad,
-                    boxstyle="round,pad=0.02",
-                    linewidth=0,
+                    boxstyle="round,pad=0.01",
+                    linewidth=0.5,
+                    edgecolor=CELL_BORDER,
                     facecolor=BG_CELL,
                 )
                 ax_cal.add_patch(rect)
 
                 # day number (top-right)
                 ax_cal.text(
-                    x0 + cell_w - pad - 0.08, y0 + cell_h - pad - 0.1,
+                    x0 + cell_w - pad - 0.06, y0 + cell_h - pad - 0.07,
                     str(day_num),
                     ha="right", va="top",
-                    color=TEXT_DAY, fontsize=7.5, fontweight="bold",
+                    color=TEXT_DAY, fontsize=6.5, fontweight="bold",
                 )
 
-                # mini bars
-                bar_area_h = cell_h * 0.52
-                bar_area_y0 = y0 + pad + 0.04
-                bar_w = cell_w * 0.18
-                gap   = cell_w * 0.05
-                total_bar_w = 2 * bar_w + gap
-                bar_x0 = x0 + (cell_w - total_bar_w) / 2
+                # bars fill the lower portion of the cell
+                inner_x0 = x0 + pad + 0.01
+                inner_y0 = y0 + pad + 0.01
+                inner_w  = cell_w - 2 * pad - 0.02
+                inner_h  = cell_h - 2 * pad - 0.02
+                bar_top  = y0 + cell_h - pad - 0.22   # leave room for day number
+                bar_area_h = bar_top - inner_y0
+                half_w = inner_w / 2
 
                 for val, color, bx in [
-                    (inc_val,  COL_INC, bar_x0),
-                    (exp_val,  COL_EXP, bar_x0 + bar_w + gap),
+                    (inc_val, COL_INC, inner_x0),
+                    (exp_val, COL_EXP, inner_x0 + half_w),
                 ]:
                     if val > 0:
                         bh = (val / max_val) * bar_area_h
-                        brect = mpatches.Rectangle(
-                            (bx, bar_area_y0),
-                            bar_w, bh,
-                            linewidth=0, facecolor=color, alpha=0.9,
-                        )
-                        ax_cal.add_patch(brect)
+                        ax_cal.add_patch(mpatches.Rectangle(
+                            (bx, inner_y0),
+                            half_w, bh,
+                            linewidth=0, facecolor=color, alpha=0.85,
+                        ))
 
             col = first_wd
             for day in range(1, n_days + 1):
                 row_from_top = (first_wd + day - 1) // 7
-                row = n_rows - 1 - row_from_top   # flip so week 1 is at top
-                exp = expense_by_day[day - 1]
-                inc = income_by_day[day - 1]
-                _draw_cell(col, row, day, exp, inc)
+                row = n_rows - 1 - row_from_top
+                _draw_cell(col, row, day, expense_by_day[day - 1], income_by_day[day - 1])
                 col = (col + 1) % 7
 
-            # legend
-            legend_y = -0.02
-            for color, label in [(COL_INC, "Income"), (COL_EXP, "Expenses")]:
-                patch = mpatches.Patch(color=color, label=label)
             ax_cal.legend(
                 handles=[
                     mpatches.Patch(color=COL_INC, label="Income"),
                     mpatches.Patch(color=COL_EXP, label="Expenses"),
                 ],
                 loc="lower right",
-                bbox_to_anchor=(1.0, -0.04),
+                bbox_to_anchor=(1.0, -0.02),
                 ncol=2,
                 frameon=False,
-                fontsize=8,
+                fontsize=7,
                 labelcolor=TEXT_HDR,
             )
 
-            plt.tight_layout(pad=0.3)
-            fig_cal.savefig(calendar_image_path, dpi=150, bbox_inches="tight",
+            plt.tight_layout(pad=0.2)
+            fig_cal.savefig(calendar_image_path, dpi=130, bbox_inches="tight",
                             facecolor=BG_OUTER)
             plt.close(fig_cal)
             print("✅ Calendar chart generated")
