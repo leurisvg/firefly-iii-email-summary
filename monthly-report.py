@@ -786,22 +786,22 @@ def main():
 
         generalTableBody = (
             '<table style="width:100%;border-collapse:collapse;margin-top:0;">'
-            '<tr><td colspan="3" style="padding:4px 8px 2px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#9ca3af;border-bottom:none;">This Month</td></tr>'
+            f'<tr><td colspan="3" style="padding:4px 8px 2px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:{theme["kpi_label"]};border-bottom:none;">This Month</td></tr>'
             '<tr>'
             + _stat_card("Earned", earnedThisMonth,      earnedThisMonth_display,      "#10b981")
             + _stat_card("Spent",  abs(spentThisMonth),  spentThisMonth_display,       "#ef4444")
             + _stat_card("Net",    netChangeThisMonth,   netChangeThisMonth_display,   net_m_color)
             + '</tr>'
-            '<tr><td colspan="3" style="padding:12px 8px 2px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#9ca3af;border-bottom:none;">Year to Date</td></tr>'
+            f'<tr><td colspan="3" style="padding:12px 8px 2px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:{theme["kpi_label"]};border-bottom:none;">Year to Date</td></tr>'
             '<tr>'
             + _stat_card("Earned", earnedThisYear,       earnedThisYear_display,       "#10b981")
             + _stat_card("Spent",  abs(spentThisYear),   spentThisYear_display,        "#ef4444")
             + _stat_card("Net",    netChangeThisYear,    netChangeThisYear_display,    net_y_color)
             + '</tr>'
-            '<tr><td colspan="3" style="padding:12px 8px 2px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#9ca3af;border-bottom:none;">Net Worth</td></tr>'
+            f'<tr><td colspan="3" style="padding:12px 8px 2px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:{theme["kpi_label"]};border-bottom:none;">Net Worth</td></tr>'
             f'<tr><td colspan="3" style="padding:8px;border-bottom:none;">'
-            f'<div style="background:#f8f9fa;border-radius:8px;padding:16px;border-left:4px solid {nw_color};">'
-            f'<div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.8px;color:#6b7280;margin-bottom:8px;">Current Net Worth</div>'
+            f'<div style="background:{theme["stat_card_bg"]};border-radius:8px;padding:16px;border-left:4px solid {nw_color};">'
+            f'<div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.8px;color:{theme["stat_card_label"]};margin-bottom:8px;">Current Net Worth</div>'
             f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:24px;font-weight:700;color:{nw_color};">'
             + nw_inner
             + '</div></div></td></tr></table>'
@@ -1392,7 +1392,7 @@ def main():
                         ),
                         text=labels,
                         textposition="top center",
-                        textfont=dict(size=8, color="#374151"),
+                        textfont=dict(size=8, color=theme["chart_font"]),
                         fill="tonexty",
                         fillcolor=fill_color,
                         connectgaps=True,
@@ -1404,10 +1404,10 @@ def main():
                 x_pad = 0.4
                 fig_savings.update_xaxes(
                     tickangle=0,
-                    tickfont=dict(size=7, color="#6b7280"),
+                    tickfont=dict(size=7, color=theme["kpi_label"]),
                     showgrid=False,
                     showline=True,
-                    linecolor="#e5e7eb",
+                    linecolor=theme["th_border"],
                     linewidth=1,
                     zeroline=False,
                     range=[-x_pad, len(month_labels) - 1 + x_pad],
@@ -1423,9 +1423,9 @@ def main():
                 fig_savings.update_yaxes(
                     tickprefix=currencySymbol,
                     tickformat=",.0f",
-                    tickfont=dict(size=7, color="#6b7280"),
+                    tickfont=dict(size=7, color=theme["kpi_label"]),
                     showgrid=True,
-                    gridcolor="#f0f0f0",
+                    gridcolor=theme["td_border"],
                     gridwidth=1,
                     zeroline=False,
                     nticks=6,
@@ -1743,6 +1743,7 @@ def main():
 						padding: 14px 12px;
 						border-bottom: 1px solid {td_border};
 						font-size: 15px;
+						color: {body_text};
 					}}
 					tr:last-child td {{
 						border-bottom: none;
