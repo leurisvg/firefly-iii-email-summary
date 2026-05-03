@@ -1503,18 +1503,40 @@ def main():
                     strip.set_clip_path(bg)
                     ax_cal.add_patch(strip)
 
-                # 3. Solid bars from bottom, clipped to rounded shape
+                # 3. Solid bars from bottom + value labels
+                def _fmt(v):
+                    return f"{v/1000:.1f}k" if v >= 1000 else str(int(round(v)))
+
+                label_colors = {COL_INC: "#047857", COL_EXP: "#b91c1c"}
                 for val, color, sx in [
                     (inc_val, COL_INC, cx0),
                     (exp_val, COL_EXP, cx0 + half_w),
                 ]:
                     if val > 0:
+                        bh_bar = (val / max_val) * ch
                         bar = mpatches.Rectangle(
-                            (sx, cy0), half_w, (val / max_val) * ch,
+                            (sx, cy0), half_w, bh_bar,
                             linewidth=0, facecolor=color, alpha=0.85,
                         )
                         bar.set_clip_path(bg)
                         ax_cal.add_patch(bar)
+
+                        # value label: inside bar if tall enough, else just above it
+                        lbl = _fmt(val)
+                        bar_top = cy0 + bh_bar
+                        min_inside = ch * 0.28   # threshold to fit text inside
+                        if bh_bar >= min_inside:
+                            # inside bar, near top
+                            ly, va_lbl, lbl_col = bar_top - 0.02, "top", "white"
+                        else:
+                            # just above bar
+                            ly, va_lbl, lbl_col = bar_top + 0.015, "bottom", label_colors[color]
+                        ax_cal.text(
+                            sx + half_w / 2, ly, lbl,
+                            ha="center", va=va_lbl,
+                            color=lbl_col, fontsize=4, fontweight="bold",
+                            zorder=6, clip_on=True,
+                        )
 
                 # 4. Rounded border on top (hollow)
                 ax_cal.add_patch(mpatches.FancyBboxPatch(
