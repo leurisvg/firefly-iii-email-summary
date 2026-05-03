@@ -1469,36 +1469,35 @@ def main():
 
             def _draw_cell(col, row, day_num, exp_val, inc_val):
                 x0, y0 = col * cell_w, row * cell_h
-                pad = 0.04
+                pad = 0.02
 
-                # white cell with border
-                rect = mpatches.FancyBboxPatch(
-                    (x0 + pad, y0 + pad),
-                    cell_w - 2 * pad, cell_h - 2 * pad,
-                    boxstyle="round,pad=0.01",
-                    linewidth=0.5,
+                inner_x0   = x0 + pad
+                inner_y0   = y0 + pad
+                inner_w    = cell_w - 2 * pad
+                inner_h    = cell_h - 2 * pad
+                half_w     = inner_w / 2
+                bar_area_h = inner_h   # background fills the full cell height
+
+                # white rounded cell
+                ax_cal.add_patch(mpatches.FancyBboxPatch(
+                    (inner_x0, inner_y0), inner_w, inner_h,
+                    boxstyle="round,pad=0.04",
+                    linewidth=0.4,
                     edgecolor=CELL_BORDER,
                     facecolor=BG_CELL,
-                )
-                ax_cal.add_patch(rect)
+                    clip_on=True,
+                ))
 
-                # day number (top-right)
-                ax_cal.text(
-                    x0 + cell_w - pad - 0.06, y0 + cell_h - pad - 0.07,
-                    str(day_num),
-                    ha="right", va="top",
-                    color=TEXT_DAY, fontsize=6.5, fontweight="bold",
-                )
+                # translucent background strips – full height, inset to stay within cell
+                sp = 0.035   # small inset so strips don't bleed past rounded corners
+                for color, bx in [(COL_INC, inner_x0), (COL_EXP, inner_x0 + half_w)]:
+                    ax_cal.add_patch(mpatches.Rectangle(
+                        (bx + sp, inner_y0 + sp),
+                        half_w - sp, inner_h - 2 * sp,
+                        linewidth=0, facecolor=color, alpha=0.1,
+                    ))
 
-                # bars fill the lower portion of the cell
-                inner_x0 = x0 + pad + 0.01
-                inner_y0 = y0 + pad + 0.01
-                inner_w  = cell_w - 2 * pad - 0.02
-                inner_h  = cell_h - 2 * pad - 0.02
-                bar_top  = y0 + cell_h - pad - 0.22   # leave room for day number
-                bar_area_h = bar_top - inner_y0
-                half_w = inner_w / 2
-
+                # solid bars grow from bottom
                 for val, color, bx in [
                     (inc_val, COL_INC, inner_x0),
                     (exp_val, COL_EXP, inner_x0 + half_w),
@@ -1506,10 +1505,18 @@ def main():
                     if val > 0:
                         bh = (val / max_val) * bar_area_h
                         ax_cal.add_patch(mpatches.Rectangle(
-                            (bx, inner_y0),
-                            half_w, bh,
+                            (bx, inner_y0), half_w, bh,
                             linewidth=0, facecolor=color, alpha=0.85,
                         ))
+
+                # day number on top (top-right corner)
+                ax_cal.text(
+                    x0 + cell_w - pad - 0.04, y0 + cell_h - pad - 0.04,
+                    str(day_num),
+                    ha="right", va="top",
+                    color=TEXT_DAY, fontsize=6, fontweight="bold",
+                    zorder=5,
+                )
 
             col = first_wd
             for day in range(1, n_days + 1):
@@ -1565,8 +1572,8 @@ def main():
             )
 
         calendarSection = (
-            '<div class="section">'
-            '<h3>📅 Daily Cash Flow</h3>'
+            '<div style="flex:1;min-width:0;">'
+            '<h3 style="margin:0 0 12px 0;color:#667eea;font-size:18px;font-weight:700;border-left:4px solid #667eea;padding-left:10px;">📅 Daily Cash Flow</h3>'
             '__CALENDAR_CHART__'
             '</div>'
         )
@@ -1822,13 +1829,15 @@ def main():
 				<div style="background:#f0f4ff;border-radius:8px;padding:12px 18px;margin-bottom:20px;font-size:13px;color:#4c5fa8;border-left:3px solid #667eea;line-height:1.5;">
 					📊 An <strong>interactive version</strong> of this report is attached — open <strong>firefly-report.html</strong> in your browser for hover details, zoom, and pan on all charts.
 				</div>
-				<div class="section">
-					<h3>💸 Money Flow</h3>
-					{sankeySection}
+				<div class="section" style="display:flex;gap:24px;align-items:flex-start;">
+					<div style="flex:1;min-width:0;">
+						<h3 style="margin:0 0 12px 0;">💸 Money Flow</h3>
+						{sankeySection}
+					</div>
+					{calendarSection}
 				</div>
 				{budgetSection}
 				{topTransactionsSection}
-				{calendarSection}
 				{savingsSection}
 				<div class="section">
 					<h3>📈 Financial Overview</h3>
