@@ -33,6 +33,9 @@ email:
 # Optional: Custom email subject
 email_subject: 'Firefly III: Monthly Report'  # Default subject if not specified
 
+# Theme for the email report ('dark' or 'light'). Default: dark
+theme: dark
+
 # Optional: Healthcheck URL (e.g., healthchecks.io)
 # Uncomment and set if you want to ping a healthcheck service after successful email
 # healthcheck_url: 'https://hc-ping.com/your-uuid-here'

@@ -155,6 +155,56 @@ def main():
 
     multi_currency_mode = "base_currency" in config
 
+    # ── Theme ──────────────────────────────────────────────────────────────────
+    THEMES = {
+        "light": {
+            "body_bg": "#f5f5f5", "body_text": "#1a1a1a",
+            "section_bg": "white", "section_shadow": "rgba(0,0,0,0.08)", "section_border": "none",
+            "accent": "#667eea", "header_gradient": "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+            "th_bg": "#f8f9fa", "th_text": "#495057", "th_border": "#dee2e6",
+            "td_border": "#f0f0f0", "tr_even": "#fafafa", "tr_hover": "#f0f4ff",
+            "total_row_hover": "#5a6fd6",
+            "kpi_bg": "white", "kpi_label": "#6b7280", "kpi_value": "#1a1a1a",
+            "footer": "#999",
+            "banner_bg": "#f0f4ff", "banner_text": "#4c5fa8", "banner_border": "#667eea",
+            "zero": "#999", "orig_amount": "#888", "exch_rate": "#aaa",
+            "stat_card_bg": "#f8f9fa", "stat_card_label": "#6b7280",
+            "stat_card_value": "#1a1a1a", "stat_card_small": "#888", "stat_card_tiny": "#aaa",
+            "summary_row_bg": "#f8f9fa", "budget_bar_track": "#f0f0f0",
+            "chart_font": "#1a1a1a", "chart_bg": "white",
+            "cal_bg_outer": "#f5f5f5", "cal_bg_cell": "#ffffff",
+            "cal_text_hdr": "#6c757d", "cal_text_day": "#495057", "cal_cell_border": "#e9ecef",
+            "cal_col_inc": "#10b981", "cal_col_exp": "#ef4444",
+            "cal_label_inc": "#047857", "cal_label_exp": "#b91c1c",
+        },
+        "dark": {
+            "body_bg": "#0a0e1a", "body_text": "#e2e8f0",
+            "section_bg": "#111827", "section_shadow": "rgba(0,0,0,0.4)", "section_border": "1px solid #1e293b",
+            "accent": "#818cf8", "header_gradient": "linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)",
+            "th_bg": "#1e293b", "th_text": "#94a3b8", "th_border": "#334155",
+            "td_border": "#1e293b", "tr_even": "#0f172a", "tr_hover": "#1e3a5f",
+            "total_row_hover": "#4338ca",
+            "kpi_bg": "#111827", "kpi_label": "#64748b", "kpi_value": "#f1f5f9",
+            "footer": "#374151",
+            "banner_bg": "#1e1b4b", "banner_text": "#a5b4fc", "banner_border": "#4f46e5",
+            "zero": "#475569", "orig_amount": "#64748b", "exch_rate": "#475569",
+            "stat_card_bg": "#1e293b", "stat_card_label": "#64748b",
+            "stat_card_value": "#f1f5f9", "stat_card_small": "#64748b", "stat_card_tiny": "#475569",
+            "summary_row_bg": "#1e293b", "budget_bar_track": "#1e293b",
+            "chart_font": "#cbd5e1", "chart_bg": "#111827",
+            "cal_bg_outer": "#0a0e1a", "cal_bg_cell": "#111827",
+            "cal_text_hdr": "#64748b", "cal_text_day": "#cbd5e1", "cal_cell_border": "#1e293b",
+            "cal_col_inc": "#34d399", "cal_col_exp": "#f87171",
+            "cal_label_inc": "#34d399", "cal_label_exp": "#f87171",
+        },
+    }
+    theme_mode = config.get("theme", "dark")
+    if theme_mode not in THEMES:
+        print(f"WARNING: Unknown theme '{theme_mode}', defaulting to 'dark'")
+        theme_mode = "dark"
+    theme = THEMES[theme_mode]
+    # ──────────────────────────────────────────────────────────────────────────
+
     #
     # Determine the applicable date range
     today = datetime.date.today()
@@ -646,7 +696,7 @@ def main():
                     pct_fill = min(pct_raw, 100)
                     bar_color = "#ef4444" if pct_raw >= 100 else "#f59e0b" if pct_raw >= 80 else "#10b981"
                     bar_html = (
-                        f'<div style="margin-top:6px;background:#f0f0f0;border-radius:3px;height:4px;width:100%;line-height:4px;font-size:0;">'
+                        f'<div style="margin-top:6px;background:{theme["budget_bar_track"]};border-radius:3px;height:4px;width:100%;line-height:4px;font-size:0;">'
                         f'<div style="width:{pct_fill:.1f}%;height:4px;border-radius:3px;background:{bar_color};line-height:4px;font-size:0;"></div></div>'
                     )
                 else:
@@ -690,22 +740,22 @@ def main():
                     sign = "+" if orig >= 0 else "-"
                     orig_str = f"{sign}{abs(orig):,.2f} {e['currency']}"
                     if rate == 1.0:
-                        inner += f'<br><span style="font-size:11px;font-weight:400;color:#888;">{orig_str}</span>'
+                        inner += f'<br><span style="font-size:11px;font-weight:400;color:{theme["stat_card_small"]};">{orig_str}</span>'
                     else:
                         conv = orig * rate
                         conv_sign = "+" if conv >= 0 else "-"
                         conv_str = f"{currencySymbol}{conv_sign}{abs(conv):,.2f}"
                         inner += (
-                            f'<br><span style="font-size:11px;font-weight:400;color:#888;">'
+                            f'<br><span style="font-size:11px;font-weight:400;color:{theme["stat_card_small"]};">'
                             f'{orig_str} → {conv_str}'
-                            f' <span style="font-size:10px;color:#aaa;font-style:italic;">(×{rate:.4f})</span>'
+                            f' <span style="font-size:10px;color:{theme["stat_card_tiny"]};font-style:italic;">(×{rate:.4f})</span>'
                             f'</span>'
                         )
             return (
                 f'<td style="width:33.33%;padding:8px;vertical-align:top;">'
-                f'<div style="background:#f8f9fa;border-radius:8px;padding:16px;border-left:4px solid {color};">'
-                f'<div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.8px;color:#6b7280;margin-bottom:8px;">{label}</div>'
-                f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:18px;font-weight:700;color:#1a1a1a;">{inner}</div>'
+                f'<div style="background:{theme["stat_card_bg"]};border-radius:8px;padding:16px;border-left:4px solid {color};">'
+                f'<div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.8px;color:{theme["stat_card_label"]};margin-bottom:8px;">{label}</div>'
+                f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:18px;font-weight:700;color:{theme["stat_card_value"]};">{inner}</div>'
                 f'</div></td>'
             )
 
@@ -1092,9 +1142,9 @@ def main():
         )
 
         fig.update_layout(
-            font=dict(size=12, family="Inter, Arial", color="#1a1a1a"),
-            plot_bgcolor="white",
-            paper_bgcolor="white",
+            font=dict(size=12, family="Inter, Arial", color=theme["chart_font"]),
+            plot_bgcolor=theme["chart_bg"],
+            paper_bgcolor=theme["chart_bg"],
             height=600,
             margin=dict(l=10, r=10, t=10, b=10),
         )
@@ -1384,14 +1434,14 @@ def main():
                 )
 
             for annotation in fig_savings.layout.annotations:
-                annotation.font = dict(size=12, color="#374151", family="Inter, Arial")
+                annotation.font = dict(size=12, color=theme["chart_font"], family="Inter, Arial")
 
             chart_width = max(800, 320 * n_cols)
             chart_height = 340 * n_rows
             fig_savings.update_layout(
-                paper_bgcolor="white",
-                plot_bgcolor="white",
-                font=dict(family="Inter, Arial", size=12, color="#1a1a1a"),
+                paper_bgcolor=theme["chart_bg"],
+                plot_bgcolor=theme["chart_bg"],
+                font=dict(family="Inter, Arial", size=12, color=theme["chart_font"]),
                 margin=dict(l=20, r=20, t=50, b=50),
                 height=chart_height,
             )
@@ -1431,14 +1481,14 @@ def main():
 
             import calendar as _cal
 
-            # colours – match report light theme
-            BG_OUTER   = "#f5f5f5"
-            BG_CELL    = "#ffffff"
-            TEXT_HDR   = "#6c757d"
-            TEXT_DAY   = "#495057"
-            CELL_BORDER = "#e9ecef"
-            COL_INC    = "#10b981"
-            COL_EXP    = "#ef4444"
+            # colours – from theme
+            BG_OUTER    = theme["cal_bg_outer"]
+            BG_CELL     = theme["cal_bg_cell"]
+            TEXT_HDR    = theme["cal_text_hdr"]
+            TEXT_DAY    = theme["cal_text_day"]
+            CELL_BORDER = theme["cal_cell_border"]
+            COL_INC     = theme["cal_col_inc"]
+            COL_EXP     = theme["cal_col_exp"]
 
             week_days  = ["M", "T", "W", "T", "F", "S", "S"]
             first_wd   = _cal.monthrange(startDate.year, startDate.month)[0]  # 0=Mon
@@ -1507,7 +1557,7 @@ def main():
                 def _fmt(v):
                     return f"{v/1000:.1f}k" if v >= 1000 else str(int(round(v)))
 
-                label_colors = {COL_INC: "#047857", COL_EXP: "#b91c1c"}
+                label_colors = {COL_INC: theme["cal_label_inc"], COL_EXP: theme["cal_label_exp"]}
                 for val, color, sx in [
                     (inc_val, COL_INC, cx0),
                     (exp_val, COL_EXP, cx0 + half_w),
@@ -1609,7 +1659,7 @@ def main():
 
         calendarSection = (
             '<div style="flex:1;min-width:0;">'
-            '<h3 style="margin:0 0 12px 0;color:#667eea;font-size:18px;font-weight:700;border-left:4px solid #667eea;padding-left:10px;">📅 Daily Cash Flow</h3>'
+            f'<h3 style="margin:0 0 12px 0;color:{theme["accent"]};font-size:18px;font-weight:700;border-left:4px solid {theme["accent"]};padding-left:10px;">📅 Daily Cash Flow</h3>'
             '__CALENDAR_CHART__'
             '</div>'
         )
@@ -1625,16 +1675,16 @@ def main():
 					body {{
 						font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
 						line-height: 1.6;
-						color: #1a1a1a;
+						color: {body_text};
 						max-width: 800px;
 						margin: 0 auto;
 						padding: 20px;
-						background-color: #f5f5f5;
+						background-color: {body_bg};
 						-webkit-font-smoothing: antialiased;
 						-moz-osx-font-smoothing: grayscale;
 					}}
 					.header {{
-						background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+						background: {header_gradient};
 						color: white;
 						padding: 30px;
 						border-radius: 10px;
@@ -1655,18 +1705,19 @@ def main():
 						letter-spacing: 0.2px;
 					}}
 					.section {{
-						background: white;
+						background: {section_bg};
 						padding: 25px;
 						margin-bottom: 20px;
 						border-radius: 8px;
-						box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+						box-shadow: 0 2px 4px {section_shadow};
+						border: {section_border};
 					}}
 					h3 {{
 						margin: 0 0 20px 0;
-						color: #667eea;
+						color: {accent};
 						font-size: 22px;
 						font-weight: 700;
-						border-left: 4px solid #667eea;
+						border-left: 4px solid {accent};
 						padding-left: 12px;
 						padding-bottom: 0;
 						letter-spacing: -0.3px;
@@ -1678,32 +1729,32 @@ def main():
 						margin-top: 10px;
 					}}
 					th {{
-						background-color: #f8f9fa;
+						background-color: {th_bg};
 						padding: 12px;
 						text-align: left;
 						font-weight: 600;
-						color: #495057;
-						border-bottom: 2px solid #dee2e6;
+						color: {th_text};
+						border-bottom: 2px solid {th_border};
 						font-size: 13px;
 						text-transform: uppercase;
 						letter-spacing: 0.8px;
 					}}
 					td {{
 						padding: 14px 12px;
-						border-bottom: 1px solid #f0f0f0;
+						border-bottom: 1px solid {td_border};
 						font-size: 15px;
 					}}
 					tr:last-child td {{
 						border-bottom: none;
 					}}
 					tr:nth-child(even) td {{
-						background-color: #fafafa;
+						background-color: {tr_even};
 					}}
 					tr:hover td {{
-						background-color: #f0f4ff;
+						background-color: {tr_hover};
 					}}
 					.total-row:hover td {{
-						background-color: #5a6fd6;
+						background-color: {total_row_hover};
 					}}
 					.amount {{
 						font-weight: 600;
@@ -1719,17 +1770,17 @@ def main():
 						color: #ef4444;
 					}}
 					.zero {{
-						color: #999;
+						color: {zero};
 						font-style: italic;
 					}}
 					.original-amount {{
 						font-size: 0.8em;
-						color: #888;
+						color: {orig_amount};
 						font-weight: 400;
 					}}
 					.exchange-rate {{
 						font-size: 0.75em;
-						color: #aaa;
+						color: {exch_rate};
 						font-style: italic;
 						font-weight: 400;
 					}}
@@ -1747,10 +1798,10 @@ def main():
 					.kpi-card {{
 						display: table-cell;
 						width: 25%;
-						background: white;
+						background: {kpi_bg};
 						border-radius: 10px;
 						padding: 18px 16px;
-						box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+						box-shadow: 0 2px 6px {section_shadow};
 						vertical-align: top;
 						border-top: 4px solid #ccc;
 					}}
@@ -1759,28 +1810,28 @@ def main():
 						font-weight: 600;
 						text-transform: uppercase;
 						letter-spacing: 0.8px;
-						color: #6b7280;
+						color: {kpi_label};
 						margin-bottom: 6px;
 					}}
 					.kpi-value {{
 						font-family: 'JetBrains Mono', 'SF Mono', 'Monaco', monospace;
 						font-size: 20px;
 						font-weight: 700;
-						color: #1a1a1a;
+						color: {kpi_value};
 						white-space: nowrap;
 					}}
 					.kpi-green {{ border-top-color: #10b981; }}
 					.kpi-red {{ border-top-color: #ef4444; }}
 					.kpi-positive {{ border-top-color: #10b981; }}
 					.kpi-negative {{ border-top-color: #ef4444; }}
-					.kpi-blue {{ border-top-color: #667eea; }}
+					.kpi-blue {{ border-top-color: {accent}; }}
 					.mom-delta {{
 						font-size: 0.85em;
 						font-weight: 500;
 						white-space: nowrap;
 					}}
 					.summary-row {{
-						background-color: #f8f9fa;
+						background-color: {summary_row_bg};
 						font-weight: 600;
 					}}
 					.total-row {{
@@ -1812,7 +1863,7 @@ def main():
 						text-align: center;
 						margin-top: 30px;
 						padding: 20px;
-						color: #999;
+						color: {footer};
 						font-size: 13px;
 						font-weight: 400;
 					}}
@@ -1862,7 +1913,7 @@ def main():
 					<h3>🏷️ Category Summary</h3>
 					{categoriesTableBody}
 				</div>
-				<div style="background:#f0f4ff;border-radius:8px;padding:12px 18px;margin-bottom:20px;font-size:13px;color:#4c5fa8;border-left:3px solid #667eea;line-height:1.5;">
+				<div style="background:{banner_bg};border-radius:8px;padding:12px 18px;margin-bottom:20px;font-size:13px;color:{banner_text};border-left:3px solid {banner_border};line-height:1.5;">
 					📊 An <strong>interactive version</strong> of this report is attached — open <strong>firefly-report.html</strong> in your browser for hover details, zoom, and pan on all charts.
 				</div>
 				<div class="section" style="display:flex;gap:24px;align-items:flex-start;">
@@ -1896,6 +1947,7 @@ def main():
             generalTableBody=generalTableBody,
             highlightsSection=highlightsSection,
             sankeySection="{sankeySection}",  # Placeholder
+            **theme,
         )
 
         # Determine Sankey section content based on preview mode
