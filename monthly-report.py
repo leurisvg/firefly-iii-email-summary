@@ -1447,10 +1447,13 @@ def main():
             n_rows     = ((first_wd + n_days - 1) // 7) + 1
 
             cell_w, cell_h = 1.0, 1.0
-            fig_w = n_cols * cell_w
-            fig_h = (n_rows + 0.5) * cell_h   # 0.5 for header row
+            gap = 0.08    # gap between cells
+            r   = 0.03    # corner safety inset for strips/bars
 
-            fig_cal, ax_cal = plt.subplots(figsize=(fig_w * 1.1, fig_h * 1.1))
+            fig_w = n_cols * cell_w
+            fig_h = (n_rows + 0.5) * cell_h
+
+            fig_cal, ax_cal = plt.subplots(figsize=(fig_w * 0.82, fig_h * 0.9))
             fig_cal.patch.set_facecolor(BG_OUTER)
             ax_cal.set_facecolor(BG_OUTER)
             ax_cal.set_xlim(0, n_cols)
@@ -1469,52 +1472,63 @@ def main():
 
             def _draw_cell(col, row, day_num, exp_val, inc_val):
                 x0, y0 = col * cell_w, row * cell_h
-                pad = 0.02
+                cx0 = x0 + gap / 2
+                cy0 = y0 + gap / 2
+                cw  = cell_w - gap
+                ch  = cell_h - gap
+                half_w = cw / 2
+                brad = 0.09   # border radius (FancyBboxPatch pad)
+                # Inset the FancyBboxPatch origin by brad so its outer edge
+                # aligns exactly with cx0/cy0/cw/ch (pad expands outward).
+                bx0 = cx0 + brad
+                by0 = cy0 + brad
+                bw  = cw - 2 * brad
+                bh_ = ch - 2 * brad
 
-                inner_x0   = x0 + pad
-                inner_y0   = y0 + pad
-                inner_w    = cell_w - 2 * pad
-                inner_h    = cell_h - 2 * pad
-                half_w     = inner_w / 2
-                bar_area_h = inner_h   # background fills the full cell height
+                # 1. White rounded background – used as clip mask
+                bg = mpatches.FancyBboxPatch(
+                    (bx0, by0), bw, bh_,
+                    boxstyle=f"round,pad={brad}",
+                    linewidth=0, facecolor=BG_CELL,
+                    transform=ax_cal.transData,
+                )
+                ax_cal.add_patch(bg)
 
-                # white rounded cell
-                ax_cal.add_patch(mpatches.FancyBboxPatch(
-                    (inner_x0, inner_y0), inner_w, inner_h,
-                    boxstyle="round,pad=0.04",
-                    linewidth=0.4,
-                    edgecolor=CELL_BORDER,
-                    facecolor=BG_CELL,
-                    clip_on=True,
-                ))
-
-                # translucent background strips – full height, inset to stay within cell
-                sp = 0.035   # small inset so strips don't bleed past rounded corners
-                for color, bx in [(COL_INC, inner_x0), (COL_EXP, inner_x0 + half_w)]:
-                    ax_cal.add_patch(mpatches.Rectangle(
-                        (bx + sp, inner_y0 + sp),
-                        half_w - sp, inner_h - 2 * sp,
+                # 2. Translucent strips clipped to rounded shape
+                for color, sx in [(COL_INC, cx0), (COL_EXP, cx0 + half_w)]:
+                    strip = mpatches.Rectangle(
+                        (sx, cy0), half_w, ch,
                         linewidth=0, facecolor=color, alpha=0.1,
-                    ))
+                    )
+                    strip.set_clip_path(bg)
+                    ax_cal.add_patch(strip)
 
-                # solid bars grow from bottom
-                for val, color, bx in [
-                    (inc_val, COL_INC, inner_x0),
-                    (exp_val, COL_EXP, inner_x0 + half_w),
+                # 3. Solid bars from bottom, clipped to rounded shape
+                for val, color, sx in [
+                    (inc_val, COL_INC, cx0),
+                    (exp_val, COL_EXP, cx0 + half_w),
                 ]:
                     if val > 0:
-                        bh = (val / max_val) * bar_area_h
-                        ax_cal.add_patch(mpatches.Rectangle(
-                            (bx, inner_y0), half_w, bh,
+                        bar = mpatches.Rectangle(
+                            (sx, cy0), half_w, (val / max_val) * ch,
                             linewidth=0, facecolor=color, alpha=0.85,
-                        ))
+                        )
+                        bar.set_clip_path(bg)
+                        ax_cal.add_patch(bar)
 
-                # day number on top (top-right corner)
+                # 4. Rounded border on top (hollow)
+                ax_cal.add_patch(mpatches.FancyBboxPatch(
+                    (bx0, by0), bw, bh_,
+                    boxstyle=f"round,pad={brad}",
+                    linewidth=0.5, edgecolor=CELL_BORDER, facecolor="none",
+                ))
+
+                # 5. Day number – centered
                 ax_cal.text(
-                    x0 + cell_w - pad - 0.04, y0 + cell_h - pad - 0.04,
+                    cx0 + cw / 2, cy0 + ch / 2,
                     str(day_num),
-                    ha="right", va="top",
-                    color=TEXT_DAY, fontsize=6, fontweight="bold",
+                    ha="center", va="center",
+                    color=TEXT_DAY, fontsize=9, fontweight="bold",
                     zorder=5,
                 )
 
