@@ -1453,7 +1453,7 @@ def main():
             fig_w = n_cols * cell_w
             fig_h = (n_rows + 0.5) * cell_h
 
-            fig_cal, ax_cal = plt.subplots(figsize=(fig_w * 0.82, fig_h * 0.9))
+            fig_cal, ax_cal = plt.subplots(figsize=(fig_w * 0.42, fig_h * 0.46))
             fig_cal.patch.set_facecolor(BG_OUTER)
             ax_cal.set_facecolor(BG_OUTER)
             ax_cal.set_xlim(0, n_cols)
@@ -1465,7 +1465,7 @@ def main():
                 ax_cal.text(
                     c + 0.5, n_rows + 0.25, label,
                     ha="center", va="center",
-                    color=TEXT_HDR, fontsize=8, fontweight="600",
+                    color=TEXT_HDR, fontsize=5, fontweight="600",
                 )
 
             max_val = max(max(expense_by_day, default=0), max(income_by_day, default=0)) or 1.0
@@ -1528,7 +1528,7 @@ def main():
                     cx0 + cw / 2, cy0 + ch / 2,
                     str(day_num),
                     ha="center", va="center",
-                    color=TEXT_DAY, fontsize=9, fontweight="bold",
+                    color=TEXT_DAY, fontsize=6, fontweight="bold",
                     zorder=5,
                 )
 
@@ -1548,12 +1548,12 @@ def main():
                 bbox_to_anchor=(1.0, -0.02),
                 ncol=2,
                 frameon=False,
-                fontsize=7,
+                fontsize=5,
                 labelcolor=TEXT_HDR,
             )
 
             plt.tight_layout(pad=0.2)
-            fig_cal.savefig(calendar_image_path, dpi=130, bbox_inches="tight",
+            fig_cal.savefig(calendar_image_path, dpi=150, bbox_inches="tight",
                             facecolor=BG_OUTER)
             plt.close(fig_cal)
             print("✅ Calendar chart generated")
