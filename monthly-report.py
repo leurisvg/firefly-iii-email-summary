@@ -1127,7 +1127,7 @@ def main():
             + startDate.strftime("%Y-%m-%d")
             + "&end="
             + endDate.strftime("%Y-%m-%d")
-            + "&type=withdrawal&limit=100"
+            + "&type=withdrawal&limit=1000"
         )
         top_tx_resp = s.get(top_tx_url).json()
         all_expenses = []
@@ -1154,6 +1154,42 @@ def main():
                 })
         all_expenses.sort(key=lambda x: x["amount"], reverse=True)
         top5 = all_expenses[:5]
+
+        # Aggregate daily expenses and income for the calendar chart
+        daily_expenses: dict = {}
+        for tx in all_expenses:
+            d = tx["date"]
+            daily_expenses[d] = daily_expenses.get(d, 0) + tx["amount"]
+
+        daily_income: dict = {}
+        for trans in income_transactions.get("data", []):
+            for t in trans["attributes"]["transactions"]:
+                try:
+                    raw_amt = abs(float(t.get("amount", 0) or 0))
+                except (ValueError, TypeError):
+                    continue
+                if raw_amt == 0:
+                    continue
+                tx_currency = t.get("currency_code", currencyName)
+                if multi_currency_mode:
+                    conv_amt, _ = convert_amount(raw_amt, tx_currency, currencyName, exchange_rates)
+                else:
+                    conv_amt = raw_amt
+                d = t.get("date", "")[:10]
+                if d:
+                    daily_income[d] = daily_income.get(d, 0) + conv_amt
+
+        import calendar as cal_module
+        days_in_month = cal_module.monthrange(startDate.year, startDate.month)[1]
+        day_labels = [str(d) for d in range(1, days_in_month + 1)]
+        expense_by_day = [
+            daily_expenses.get(startDate.replace(day=d).strftime("%Y-%m-%d"), 0)
+            for d in range(1, days_in_month + 1)
+        ]
+        income_by_day = [
+            daily_income.get(startDate.replace(day=d).strftime("%Y-%m-%d"), 0)
+            for d in range(1, days_in_month + 1)
+        ]
 
         topTransactionsSection = ""
         if top5:
@@ -1381,6 +1417,77 @@ def main():
             )
         else:
             savings_section_html = ""
+
+        # Build the daily calendar chart (expenses vs income per day)
+        calendar_image_path = os.path.join(base_dir, "calendar_chart.png")
+        calendar_html_div = ""
+
+        def _fmt_bar_label(v: float) -> str:
+            if v == 0:
+                return ""
+            if v >= 1000:
+                return f"{v / 1000:.1f}k"
+            return f"{v:.0f}"
+
+        try:
+            print("Generating daily calendar chart...")
+            fig_calendar = go.Figure()
+            fig_calendar.add_trace(go.Bar(
+                name="Expenses",
+                x=day_labels,
+                y=expense_by_day,
+                marker_color="#ef4444",
+                text=[_fmt_bar_label(v) for v in expense_by_day],
+                textposition="outside",
+                textfont=dict(size=8, color="#b91c1c"),
+                hovertemplate="Day %{x}: " + currencySymbol + "%{y:,.2f}<extra>Expenses</extra>",
+            ))
+            fig_calendar.add_trace(go.Bar(
+                name="Income",
+                x=day_labels,
+                y=income_by_day,
+                marker_color="#10b981",
+                text=[_fmt_bar_label(v) for v in income_by_day],
+                textposition="outside",
+                textfont=dict(size=8, color="#047857"),
+                hovertemplate="Day %{x}: " + currencySymbol + "%{y:,.2f}<extra>Income</extra>",
+            ))
+            fig_calendar.update_layout(
+                barmode="group",
+                bargap=0.20,
+                bargroupgap=0.05,
+                plot_bgcolor="white",
+                paper_bgcolor="white",
+                font=dict(family="Inter, Arial", size=11, color="#1a1a1a"),
+                margin=dict(l=60, r=20, t=50, b=40),
+                height=450,
+                showlegend=True,
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+                xaxis=dict(
+                    title="Day of Month",
+                    showgrid=False,
+                    tickmode="linear",
+                    dtick=1,
+                ),
+                yaxis=dict(
+                    tickprefix=currencySymbol,
+                    tickformat=",.0f",
+                    showgrid=True,
+                    gridcolor="#f0f0f0",
+                    zeroline=False,
+                ),
+            )
+            fig_calendar.write_image(
+                calendar_image_path, format="png", width=1400, height=450, scale=2
+            )
+            print("✅ Calendar chart generated")
+            calendar_html_div = fig_calendar.to_html(
+                include_plotlyjs=False, full_html=False, div_id="calendar-chart"
+            )
+        except Exception as e:
+            print(f"⚠️  Warning: Could not generate calendar chart: {e}")
+            calendar_image_path = None
+
         #
         # Assemble the email
         print("Composing email...")
@@ -1392,6 +1499,7 @@ def main():
 
         # Create a unique content ID for the Sankey image
         sankey_cid = make_msgid(domain="firefly-report")
+        calendar_cid = make_msgid(domain="firefly-report")
 
         # Build the HTML body with budgets section
         budgetSection = ""
@@ -1401,6 +1509,13 @@ def main():
                 + budgetsTableBody
                 + "</div>"
             )
+
+        calendarSection = (
+            '<div class="section">'
+            '<h3>📅 Daily Cash Flow</h3>'
+            '__CALENDAR_CHART__'
+            '</div>'
+        )
 
         htmlBody = """
 		<html>
@@ -1659,6 +1774,7 @@ def main():
 				</div>
 				{budgetSection}
 				{topTransactionsSection}
+				{calendarSection}
 				{savingsSection}
 				<div class="section">
 					<h3>📈 Financial Overview</h3>
@@ -1676,6 +1792,7 @@ def main():
             categoriesTableBody=categoriesTableBody,
             budgetSection=budgetSection,
             topTransactionsSection=topTransactionsSection,
+            calendarSection=calendarSection,
             savingsSection=savings_section_html,
             generalTableBody=generalTableBody,
             highlightsSection=highlightsSection,
@@ -1768,9 +1885,14 @@ def main():
                 savings_img_tag = f'<img src="file://{savings_image_path_valid}" alt="Savings Chart" style="width: 100%; height: auto; border-radius: 8px;" />'
             else:
                 savings_img_tag = '<p style="color: #999; padding: 20px 0;">No savings accounts found.</p>'
+            if calendar_html_div:
+                calendar_chart_tag = f'<div style="width:100%;overflow-x:auto;">{calendar_html_div}</div>'
+            else:
+                calendar_chart_tag = '<p style="color:#999;padding:20px 0;">No data available.</p>'
             htmlBody = (
                 htmlBody.replace("{sankeySection}", sankeySection)
                         .replace("__SAVINGS_CHART__", savings_img_tag)
+                        .replace("__CALENDAR_CHART__", calendar_chart_tag)
                 + javascript_code
             )
         else:
@@ -1783,9 +1905,14 @@ def main():
                 savings_img_tag = f'<img src="cid:{savings_cid[1:-1]}" alt="Savings Chart" style="width: 100%; height: auto; border-radius: 8px;" />'
             else:
                 savings_img_tag = '<p style="color: #999; padding: 20px 0;">No savings accounts found.</p>'
+            if calendar_image_path and os.path.exists(calendar_image_path):
+                calendar_img_tag = f'<img src="cid:{calendar_cid[1:-1]}" alt="Daily Cash Flow" style="width:100%;height:auto;border-radius:8px;" />'
+            else:
+                calendar_img_tag = '<p style="color:#999;padding:20px 0;">No data available.</p>'
             htmlBody = (
                 htmlBody.replace("{sankeySection}", sankeySection)
                         .replace("__SAVINGS_CHART__", savings_img_tag)
+                        .replace("__CALENDAR_CHART__", calendar_img_tag)
                 + """
             </body>
         </html>
@@ -1812,6 +1939,14 @@ def main():
                     img_data, maintype="image", subtype="png", cid=savings_cid
                 )
             print("✅ Savings chart image attached to email")
+        # Attach calendar chart image for email mode
+        if not args.preview and calendar_image_path and os.path.exists(calendar_image_path):
+            with open(calendar_image_path, "rb") as img_file:
+                img_data = img_file.read()
+                msg.get_payload()[1].add_related(
+                    img_data, maintype="image", subtype="png", cid=calendar_cid
+                )
+            print("✅ Calendar chart image attached to email")
 
         # Attach interactive HTML report (email mode only)
         if not args.preview:
@@ -1825,10 +1960,16 @@ def main():
                 if savings_html_div
                 else '<p style="color:#999;padding:20px 0;">No savings accounts found.</p>'
             )
+            interactive_calendar = (
+                f'<div style="width:100%;overflow-x:auto;">{calendar_html_div}</div>'
+                if calendar_html_div
+                else '<p style="color:#999;padding:20px 0;">No data available.</p>'
+            )
             interactive_html_body = (
                 htmlBody
                 .replace(sankeySection, interactive_sankey, 1)
                 .replace(savings_img_tag, interactive_savings, 1)
+                .replace(calendar_img_tag, interactive_calendar, 1)
             )
             report_filename = f"firefly-report-{startDate.strftime('%Y-%m')}.html"
             msg.add_attachment(
