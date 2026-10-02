@@ -863,6 +863,7 @@ def main():
 
         # Build revenue account to category mapping with amounts
         revenue_to_category = {}  # revenue_account -> {category: amount}
+        asset_income = {}  # asset_name -> total income received
 
         for trans in income_transactions.get("data", []):
             for t in trans["attributes"]["transactions"]:
@@ -880,6 +881,10 @@ def main():
                 revenue_to_category[source_name][category] = (
                     revenue_to_category[source_name].get(category, 0) + amount
                 )
+
+                dest_name = t.get("destination_name", "")
+                if dest_name:
+                    asset_income[dest_name] = asset_income.get(dest_name, 0) + amount
 
         sankeyNodes = []
         sankeyLinks = []
@@ -1205,9 +1210,61 @@ def main():
                     "description": t.get("description", "—"),
                     "category": t.get("category_name") or "—",
                     "date": t.get("date", "")[:10],
+                    "source_name": t.get("source_name", ""),
                 })
         all_expenses.sort(key=lambda x: x["amount"], reverse=True)
         top5 = all_expenses[:5]
+
+        # Aggregate expenses per asset account
+        asset_expenses = {}
+        for tx in all_expenses:
+            src = tx["source_name"]
+            if src:
+                asset_expenses[src] = asset_expenses.get(src, 0) + tx["amount"]
+
+        # Build per-asset summary (only assets with income or expenses)
+        all_asset_names = set(asset_income.keys()) | set(asset_expenses.keys())
+        asset_summary_rows = []
+        for name in sorted(all_asset_names):
+            income_val = asset_income.get(name, 0)
+            expense_val = asset_expenses.get(name, 0)
+            net_val = income_val - expense_val
+            asset_summary_rows.append({
+                "name": name,
+                "income": income_val,
+                "expense": expense_val,
+                "net": net_val,
+            })
+        asset_summary_rows.sort(key=lambda x: x["net"], reverse=True)
+
+        if asset_summary_rows:
+            rows_html = ""
+            for row in asset_summary_rows:
+                net_cls = "positive" if row["net"] > 0 else ("negative" if row["net"] < 0 else "zero")
+                rows_html += (
+                    f'<tr>'
+                    f'<td>{row["name"]}</td>'
+                    f'<td class="amount positive">+{_fmtv(row["income"])}</td>'
+                    f'<td class="amount negative">-{_fmtv(row["expense"])}</td>'
+                    f'<td class="amount {net_cls}">{_fmtv(row["net"])}</td>'
+                    f'</tr>'
+                )
+            assetSummarySection = (
+                '<div class="section">'
+                '<h3>🏦 Asset Account Activity</h3>'
+                '<table>'
+                '<thead><tr>'
+                '<th>Account</th>'
+                '<th>Income</th>'
+                '<th>Expenses</th>'
+                '<th>Net</th>'
+                '</tr></thead>'
+                f'<tbody>{rows_html}</tbody>'
+                '</table>'
+                '</div>'
+            )
+        else:
+            assetSummarySection = ""
 
         # Aggregate daily expenses and income for the calendar chart
         daily_expenses: dict = {}
@@ -1926,6 +1983,7 @@ def main():
 				</div>
 				{budgetSection}
 				{topTransactionsSection}
+				{assetSummarySection}
 				{savingsSection}
 				<div class="section">
 					<h3>📈 Financial Overview</h3>
@@ -1943,6 +2001,7 @@ def main():
             categoriesTableBody=categoriesTableBody,
             budgetSection=budgetSection,
             topTransactionsSection=topTransactionsSection,
+            assetSummarySection=assetSummarySection,
             calendarSection=calendarSection,
             savingsSection=savings_section_html,
             generalTableBody=generalTableBody,
