@@ -864,6 +864,7 @@ def main():
         # Build revenue account to category mapping with amounts
         revenue_to_category = {}  # revenue_account -> {category: amount}
         asset_income = {}  # asset_name -> total income received
+        asset_income_txs = {}  # asset_name -> list of transactions
 
         for trans in income_transactions.get("data", []):
             for t in trans["attributes"]["transactions"]:
@@ -885,6 +886,14 @@ def main():
                 dest_name = t.get("destination_name", "")
                 if dest_name:
                     asset_income[dest_name] = asset_income.get(dest_name, 0) + amount
+                    if dest_name not in asset_income_txs:
+                        asset_income_txs[dest_name] = []
+                    asset_income_txs[dest_name].append({
+                        "date": t.get("date", "")[:10],
+                        "description": t.get("description") or source_name,
+                        "amount": amount,
+                        "category": category or "—",
+                    })
 
         sankeyNodes = []
         sankeyLinks = []
@@ -1217,10 +1226,14 @@ def main():
 
         # Aggregate expenses per asset account
         asset_expenses = {}
+        asset_expense_txs = {}
         for tx in all_expenses:
             src = tx["source_name"]
             if src:
                 asset_expenses[src] = asset_expenses.get(src, 0) + tx["amount"]
+                if src not in asset_expense_txs:
+                    asset_expense_txs[src] = []
+                asset_expense_txs[src].append(tx)
 
         # Build per-asset summary (only assets with income or expenses)
         all_asset_names = set(asset_income.keys()) | set(asset_expenses.keys())
@@ -1239,16 +1252,89 @@ def main():
 
         if asset_summary_rows:
             rows_html = ""
-            for row in asset_summary_rows:
+            for idx, row in enumerate(asset_summary_rows):
                 net_cls = "positive" if row["net"] > 0 else ("negative" if row["net"] < 0 else "zero")
+                name = row["name"]
+
+                # Top 5 income txs for this asset
+                inc_txs = sorted(asset_income_txs.get(name, []), key=lambda x: x["amount"], reverse=True)[:5]
+                # Top 5 expense txs for this asset
+                exp_txs = sorted(asset_expense_txs.get(name, []), key=lambda x: x["amount"], reverse=True)[:5]
+
+                detail_html = '<div class="asset-detail-panel">'
+                if inc_txs:
+                    detail_html += (
+                        '<div class="asset-detail-subtitle">Top Income</div>'
+                        '<table class="asset-detail-table">'
+                        '<thead><tr><th>Date</th><th>Description</th><th>Category</th><th>Amount</th></tr></thead>'
+                        '<tbody>'
+                    )
+                    for tx in inc_txs:
+                        try:
+                            date_fmt = datetime.date.fromisoformat(tx["date"]).strftime("%b %d")
+                        except ValueError:
+                            date_fmt = tx["date"]
+                        detail_html += (
+                            f'<tr>'
+                            f'<td class="asset-detail-date">{date_fmt}</td>'
+                            f'<td>{tx["description"]}</td>'
+                            f'<td class="asset-detail-cat">{tx["category"]}</td>'
+                            f'<td class="amount positive">+{_fmtv(tx["amount"])}</td>'
+                            f'</tr>'
+                        )
+                    detail_html += '</tbody></table>'
+
+                if exp_txs:
+                    detail_html += (
+                        '<div class="asset-detail-subtitle">Top Expenses</div>'
+                        '<table class="asset-detail-table">'
+                        '<thead><tr><th>Date</th><th>Description</th><th>Category</th><th>Amount</th></tr></thead>'
+                        '<tbody>'
+                    )
+                    for tx in exp_txs:
+                        try:
+                            date_fmt = datetime.date.fromisoformat(tx["date"]).strftime("%b %d")
+                        except ValueError:
+                            date_fmt = tx["date"]
+                        detail_html += (
+                            f'<tr>'
+                            f'<td class="asset-detail-date">{date_fmt}</td>'
+                            f'<td>{tx["description"]}</td>'
+                            f'<td class="asset-detail-cat">{tx["category"]}</td>'
+                            f'<td class="amount negative">-{_fmtv(tx["amount"])}</td>'
+                            f'</tr>'
+                        )
+                    detail_html += '</tbody></table>'
+
+                detail_html += '</div>'
+
                 rows_html += (
-                    f'<tr>'
-                    f'<td>{row["name"]}</td>'
+                    f'<tr class="asset-summary-row" onclick="toggleAssetDetail({idx})" style="cursor:pointer">'
+                    f'<td><span id="asset-arrow-{idx}" class="asset-arrow">▶</span> {name}</td>'
                     f'<td class="amount positive">+{_fmtv(row["income"])}</td>'
                     f'<td class="amount negative">-{_fmtv(row["expense"])}</td>'
                     f'<td class="amount {net_cls}">{_fmtv(row["net"])}</td>'
                     f'</tr>'
+                    f'<tr class="asset-detail-row" id="asset-detail-{idx}" style="display:none">'
+                    f'<td colspan="4" style="padding:0">{detail_html}</td>'
+                    f'</tr>'
                 )
+
+            asset_js = """
+<script>
+function toggleAssetDetail(idx) {
+  var detail = document.getElementById('asset-detail-' + idx);
+  var arrow = document.getElementById('asset-arrow-' + idx);
+  if (detail.style.display === 'none') {
+    detail.style.display = 'table-row';
+    arrow.textContent = '▼';
+  } else {
+    detail.style.display = 'none';
+    arrow.textContent = '▶';
+  }
+}
+</script>"""
+
             assetSummarySection = (
                 '<div class="section">'
                 '<h3>🏦 Asset Account Activity</h3>'
@@ -1261,6 +1347,7 @@ def main():
                 '</tr></thead>'
                 f'<tbody>{rows_html}</tbody>'
                 '</table>'
+                f'{asset_js}'
                 '</div>'
             )
         else:
@@ -1916,6 +2003,67 @@ def main():
 					canvas {{
 						max-width: 100%;
 						height: auto !important;
+					}}
+					.asset-summary-row:hover td {{
+						background-color: {tr_hover};
+					}}
+					.asset-arrow {{
+						display: inline-block;
+						font-size: 10px;
+						width: 14px;
+						color: {accent};
+						transition: transform 0.15s;
+					}}
+					.asset-detail-row td {{
+						padding: 0 !important;
+						background-color: {tr_even};
+						border-bottom: 2px solid {th_border};
+					}}
+					.asset-detail-panel {{
+						padding: 16px 20px;
+					}}
+					.asset-detail-subtitle {{
+						font-size: 11px;
+						font-weight: 700;
+						text-transform: uppercase;
+						letter-spacing: 0.8px;
+						color: {th_text};
+						margin: 10px 0 6px 0;
+					}}
+					.asset-detail-subtitle:first-child {{
+						margin-top: 0;
+					}}
+					.asset-detail-table {{
+						width: 100%;
+						border-collapse: collapse;
+						margin-top: 0;
+					}}
+					.asset-detail-table th {{
+						font-size: 11px;
+						padding: 6px 10px;
+						background-color: {th_bg};
+						color: {th_text};
+						border-bottom: 1px solid {th_border};
+						text-transform: uppercase;
+						letter-spacing: 0.5px;
+					}}
+					.asset-detail-table td {{
+						font-size: 13px;
+						padding: 7px 10px;
+						border-bottom: 1px solid {td_border};
+						color: {body_text};
+					}}
+					.asset-detail-table tr:last-child td {{
+						border-bottom: none;
+					}}
+					.asset-detail-date {{
+						white-space: nowrap;
+						color: {th_text};
+						font-size: 12px;
+					}}
+					.asset-detail-cat {{
+						font-size: 12px;
+						color: {th_text};
 					}}
 					.footer {{
 						text-align: center;
